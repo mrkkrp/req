@@ -32,22 +32,24 @@
 -- when you do, it's better import it qualified because it has naming
 -- conflicts with @req@.
 
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE DataKinds                          #-}
+{-# LANGUAGE DeriveDataTypeable                 #-}
+{-# LANGUAGE DeriveGeneric                      #-}
+{-# LANGUAGE FlexibleInstances                  #-}
+{-# LANGUAGE GADTs                              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving         #-}
+{-# LANGUAGE KindSignatures                     #-}
+{-# LANGUAGE MultiParamTypeClasses              #-}
+{-# LANGUAGE OverloadedStrings                  #-}
+{-# LANGUAGE RecordWildCards                    #-}
+{-# LANGUAGE ScopedTypeVariables                #-}
+{-# LANGUAGE TypeFamilies                       #-}
+{-# LANGUAGE UndecidableInstances               #-}
+{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
 module Network.HTTP.Req
   ( -- * Making a request
+    -- $making-a-request
     req
     -- * Embedding requests into your monad
     -- $embedding-requests
@@ -91,9 +93,8 @@ module Network.HTTP.Req
   , CanHaveBody (..) )
 where
 
-import Control.Monad.Error (MonadError (..))
+import Control.Exception (try)
 import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Aeson
 import Data.ByteString
 import Data.Data (Data)
@@ -117,24 +118,37 @@ import qualified Network.HTTP.Types      as Y
 ----------------------------------------------------------------------------
 -- Making a request
 
--- | Perform an HTTP request.
+-- $making-a-request
+--
+-- To make an HTTP request you need only one function: 'req'.
+
+-- | Make an HTTP request.
+--
+-- TODO Finish docs of this function when the package is more developed.
 
 req
-  :: ( MonadHttp    m
+  :: forall m method body response.
+     ( MonadHttp    m
      , HttpMethod   method
      , HttpBody     body
      , HttpResponse response
      , AllowsBody   method ~ ProvidesBody body )
-  => method
-  -> Endpoint
-  -> body
-  -> Option
-  -> m response
-req = undefined
-
--- TODO We need to catch exceptions here, only relevant ones and only
--- synchronous to give user a chance to work with pure, explicit exceptions
--- if he wants to do so.
+  => method            -- ^ HTTP method
+  -> Endpoint          -- ^ Endpoint to make the request against
+  -> body              -- ^ Body of the request
+  -> Option            -- ^ Collection of optional parameters
+  -> m response        -- ^ Response
+req method url body options = do
+  config  <- getHttpConfig
+  manager <- liftIO (readIORef globalManager)
+  let request = flip appEndo L.defaultRequest $
+        getRequestMod (Womb method :: Womb "method" method) <>
+        getRequestMod url                                   <>
+        getRequestMod (Womb body   :: Womb "body"   body)   <>
+        getRequestMod options                               <>
+        getRequestMod config
+  liftIO (try $ getHttpResponse manager request)
+    >>= either handleHttpException return
 
 ----------------------------------------------------------------------------
 -- Embedding requests into your monad
@@ -448,7 +462,9 @@ port = undefined -- TODO
 -- Here we need to provide various options how to consume responses.
 
 class HttpResponse response where
-  interpretResponse :: ByteString -> response -- FIXME use conduit
+  getHttpResponse :: L.Manager -> L.Request -> IO response
+
+-- helpers to
 
 ----------------------------------------------------------------------------
 -- Other
