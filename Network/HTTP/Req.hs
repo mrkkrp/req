@@ -10,12 +10,56 @@
 -- This is an easy-to-use, type-safe, expandable, high-level HTTP library
 -- that just works without fooling around.
 --
+-- /(A modest intro goes here, click on 'req' to start making requests.)/
+--
+-- What does the “easy-to-use” phrase mean? It means that the library is
+-- designed to be beginner-friendly, so it's simple to add it to your monad
+-- stack, intuitive to work with, well-documented, and does not get in your
+-- way. On this path certain compromises were made. For example one cannot
+-- currently modify 'L.ManagerSettings' of default manager because the
+-- library always use the same implicit global manager for simplicity and
+-- maximal connection sharing. There is a way to use your own manager with
+-- different settings, but it requires a bit more typing. Just like with my
+-- other library, Megaparsec, I spent considerable amount of time working on
+-- the documentation and examples, because doing HTTP requests is a common
+-- task and Haskell library for this should be very approachable and clear
+-- to beginners.
+--
+-- “Type-safe” means that the library is protective and eliminates certain
+-- class of errors compared to alternative libraries like @wreq@ or vanilla
+-- @http-client@. For example it makes sure user does not send request body
+-- when using methods like 'GET' or 'DELETE', minimizes amount of implicit
+-- assumptions making user specify his\/her intentions in explicit form (for
+-- example it's not possible to avoid specifying body or method of a
+-- request). It carefully hides underlying types from lower-level
+-- @http-client@ package because it's not type safe enough (for example
+-- 'L.Request' is an instance of 'Data.String.IsString' and if it's
+-- malformed, it will blow up at run-time).
+--
+-- “Expandable” refers to the ability of the library to be expanded without
+-- ugly hacking. For example it's possible to define your own HTTP methods,
+-- new ways to construct body of request, new authorization options, new
+-- ways to actually perform request and how to represent\/parse it. As user
+-- extends the library to satisfy his\/her special needs, the new solutions
+-- work just like built-ins. That said, all common cases are covered by the
+-- library out-of-the-box.
+--
+-- “High-level” means that there are less details to worry about. The
+-- library is a result of my experiences as a Haskell consultant, working
+-- for several clients who have very different projects and so the library
+-- adapts easily to any particular style of writing Haskell applications.
+-- For example some people prefer throwing exceptions, while others are
+-- concerned with purity: just define 'handleHttpException' accordingly when
+-- making your monad instance of 'MonadHttp' and it will play seamlessly.
+-- Finally, the library cuts boilerplate considerably and helps write
+-- concise, easy to read code, thanks to its minimal and very uniform API.
+--
 -- The documentation below is structured in such a way that most important
 -- information goes first: you learn how to do HTTP requests, then how to
 -- embed them any monad you have, then it goes on giving you details about
 -- less-common things you may want to know about. The documentation is
--- written with sufficient coverage of details and with examples, it's
--- designed to be a complete tutorial on its own.
+-- written with sufficient coverage of details and examples, it's designed
+-- to be a complete tutorial on its own.
 --
 -- The library uses the following well-known and mature packages under the
 -- hood to guarantee you best experience without bugs or other funny
@@ -106,7 +150,6 @@ import Data.Text (Text)
 import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
--- import Numeric.Natural
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Lazy    as BL
@@ -187,8 +230,9 @@ class MonadIO m => MonadHttp m where
 
   -- | This method describes how to deal with 'L.HttpException' that was
   -- caught by the library. One option is to re-throw it if you are OK with
-  -- exceptions, but if you prefer working with something like 'MonadError',
-  -- this is the right place to pass it to 'throwError' for example.
+  -- exceptions, but if you prefer working with something like
+  -- 'Control.Monad.Error.MonadError', this is the right place to pass it to
+  -- 'Control.Monad.Error.throwError' for example.
 
   handleHttpException :: L.HttpException -> m a
 
@@ -196,8 +240,8 @@ class MonadIO m => MonadHttp m where
   -- implementation returns its 'def' value, which is described in the
   -- documentation for the type. Common usage pattern with manually defined
   -- 'getHttpConfig' is to return some hard-coded value, or value extracted
-  -- from 'MonadReader' if a more flexible approach to configuration is
-  -- desirable.
+  -- from 'Control.Monad.Reader.MonadReader' if a more flexible approach to
+  -- configuration is desirable.
 
   getHttpConfig :: m HttpConfig
   getHttpConfig = return def
@@ -316,7 +360,7 @@ instance HttpMethod PATCH where
 -- > data COPY = COPY
 -- >
 -- > instance HttpMethod COPY where
--- >   type AllowsMody COPY = 'CanHaveBody
+-- >   type AllowsBody COPY = 'CanHaveBody
 -- >   httpMethodName Proxy = "COPY"
 
 class HttpMethod a where
