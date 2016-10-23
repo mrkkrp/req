@@ -8,7 +8,7 @@
 -- Portability :  portable
 --
 -- This is an easy-to-use, type-safe, expandable, high-level HTTP library
--- that just works without any fooling around.
+-- that just works without fooling around.
 --
 -- The documentation below is structured in such a way that most important
 -- information goes first: you learn how to do HTTP requests, then how to
@@ -28,17 +28,20 @@
 --     * <https://hackage.haskell.org/package/http-conduit> — conduit
 --       interface to @http-client@.
 --
--- You generally won't need low-level interface of @http-client@ at all
--- because this package covers /everything/, so don't import it or import
--- qualified because it has naming conflicts with @req@.
+-- You won't need low-level interface of @http-client@ most of the time, but
+-- when you do, it's better import it qualified because it has naming
+-- conflicts with @req@.
 
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -47,10 +50,9 @@ module Network.HTTP.Req
   ( -- * Making a request
     req
     -- * Embedding requests into your monad
+    -- $embedding-requests
   , MonadHttp  (..)
   , HttpConfig (..)
-  , httpConfig
-  , httpsConfig
     -- * Request
     -- ** Methods
     -- $request-methods
@@ -79,30 +81,38 @@ module Network.HTTP.Req
   , QueryParam (..)
     -- *** Headers
   , header
+    -- *** Cookies
     -- *** Authorization
     -- *** Other
   , port
-  , redirectCount
     -- * Response
   , HttpResponse (..)
     -- * Other
-  , CanHaveBody (..)
-  , Scheme (..) )
+  , CanHaveBody (..) )
 where
 
+import Control.Monad.Error (MonadError (..))
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.Aeson
 import Data.ByteString
+import Data.Data (Data)
+import Data.Default.Class
+import Data.IORef
 import Data.Proxy
 import Data.Semigroup hiding (Option)
 import Data.Text (Text)
+import Data.Typeable (Typeable)
+import GHC.Generics
 import GHC.TypeLits
-import Numeric.Natural
-import qualified Data.ByteString      as B
-import qualified Data.ByteString.Lazy as BL
-import qualified Network.HTTP.Client  as L
-import qualified Network.HTTP.Types   as Y
+-- import Numeric.Natural
+import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.ByteString         as B
+import qualified Data.ByteString.Lazy    as BL
+import qualified Network.Connection      as NC
+import qualified Network.HTTP.Client     as L
+import qualified Network.HTTP.Client.TLS as L
+import qualified Network.HTTP.Types      as Y
 
 ----------------------------------------------------------------------------
 -- Making a request
@@ -110,14 +120,13 @@ import qualified Network.HTTP.Types   as Y
 -- | Perform an HTTP request.
 
 req
-  :: ( MonadHttp          m
-     , HttpMethod         method
-     , HttpBody           body
-     , HttpResponse       response
-     , AllowsBody         method ~ ProvidesBody body
-     , ProvidesConnection m ~ scheme )
+  :: ( MonadHttp    m
+     , HttpMethod   method
+     , HttpBody     body
+     , HttpResponse response
+     , AllowsBody   method ~ ProvidesBody body )
   => method
-  -> Endpoint scheme
+  -> Endpoint
   -> body
   -> Option
   -> m response
@@ -127,28 +136,81 @@ req = undefined
 -- synchronous to give user a chance to work with pure, explicit exceptions
 -- if he wants to do so.
 
--- TODO How to specify return type here?
--- TODO It needs a way to signal errors.
-
 ----------------------------------------------------------------------------
 -- Embedding requests into your monad
 
+-- $embedding-requests
+--
+-- To use 'req' in your monad, all you need to do is to make it an instance
+-- of the 'MonadHttp' type class, which see.
+
+-- | Global 'L.Manager' that 'req' uses. Here we just go with the default
+-- settings, so users don't need to deal with this manager stuff at all, but
+-- when we create a request, instance 'HttpConfig' can affect the default
+-- settings via 'getHttpConfig'.
+--
+-- A note about safety in case 'unsafePerformIO' looks suspicious to you.
+-- The value of 'globalManager' is named and lives on top level. This means
+-- it will be shared, i.e. computed only once on first use of manager. From
+-- that moment on the 'IORef' will be just reused — exactly the behaviour we
+-- want here in order to maximize connection sharing.
+
+globalManager :: IORef L.Manager
+globalManager = unsafePerformIO $ do
+  context <- NC.initConnectionContext
+  let settings = L.mkManagerSettingsContext (Just context) def Nothing
+  manager <- L.newManager settings
+  newIORef manager
+{-# NOINLINE globalManager #-}
+
+-- | A type class for monads that support performing HTTP requests.
+-- Typically, you only need to define the 'handleHttpException' method
+-- unless you want to tweak 'HttpConfig'.
+
 class MonadIO m => MonadHttp m where
-  type ProvidesConnection m :: Scheme
-  getHttpConfig :: m (HttpConfig (ProvidesConnection m))
+
+  {-# MINIMAL handleHttpException #-}
+
+  -- | This method describes how to deal with 'L.HttpException' that was
+  -- caught by the library. One option is to re-throw it if you are OK with
+  -- exceptions, but if you prefer working with something like 'MonadError',
+  -- this is the right place to pass it to 'throwError' for example.
+
+  handleHttpException :: L.HttpException -> m a
+
+  -- | Return 'HttpConfig' to be used when performing HTTP requests. Default
+  -- implementation returns its 'def' value, which is described in the
+  -- documentation for the type. Common usage pattern with manually defined
+  -- 'getHttpConfig' is to return some hard-coded value, or value extracted
+  -- from 'MonadReader' if a more flexible approach to configuration is
+  -- desirable.
+
+  getHttpConfig :: m HttpConfig
+  getHttpConfig = return def
 
 -- | 'HttpConfig' contains general and default settings to be used when
 -- making HTTP requests.
 
-data HttpConfig (scheme :: Scheme) = HttpConfig
-  { httpConfigManager :: L.Manager
-  }
+data HttpConfig = HttpConfig
+  { httpConfigProxy :: Maybe L.Proxy
+    -- ^ Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
+    -- environment variables are respected, this setting overwrites them.
+    -- Default value: 'Nothing'.
+  , httpConfigRedirectCount :: Word
+    -- ^ How many redirects to follow when getting a resource. Default
+    -- value: 10.
+  } deriving (Show, Read, Eq, Ord, Typeable, Generic)
+    -- ↑ NOTE We can't derive 'Data' here because of 'L.Proxy'.
 
-httpConfig :: MonadIO m => m (HttpConfig 'Http)
-httpConfig = undefined -- FIXME not final, need to pass params in
+instance Default HttpConfig where
+  def = HttpConfig
+    { httpConfigProxy         = Nothing
+    , httpConfigRedirectCount = 10 }
 
-httpsConfig :: MonadIO m => m (HttpConfig 'Https)
-httpsConfig = undefined -- FIXME
+instance RequestComponent HttpConfig where
+  getRequestMod HttpConfig {..} = Endo $ \x ->
+    x { L.proxy         = httpConfigProxy
+      , L.redirectCount = fromIntegral httpConfigRedirectCount }
 
 ----------------------------------------------------------------------------
 -- Request — Methods
@@ -266,35 +328,35 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 ----------------------------------------------------------------------------
 -- Request — URL
 
-newtype Endpoint (scheme :: Scheme) = Endpoint { unEndpoint :: Text }
+newtype Endpoint = Endpoint { unEndpoint :: Text }
+
+instance RequestComponent Endpoint where
+  getRequestMod _ = undefined -- TODO
 
 -- data Endpoint (s :: Scheme) where
 --   Http'  :: Text -> Endpoint 'Http
 --   Https' :: Text -> Endpoint 'Https
 --   (:/) :: Endpoint s -> Text -> Endpoint s
 
-http :: Text -> Endpoint 'Http
+http :: Text -> Endpoint
 http = Endpoint . percentEncode
 
-https :: Text -> Endpoint 'Https
+https :: Text -> Endpoint
 https = Endpoint . percentEncode
 
-infixr 5 /:
+infixl 5 /:
 
-(/:) :: Endpoint scheme -> Text -> Endpoint scheme
+(/:) :: Endpoint -> Text -> Endpoint
 (/:) = undefined -- TODO
 
 -- TODO Escape things in endpoint and query parameters, only :/ should work
 -- as real /
 
-parseUrlHttp :: Text -> Endpoint 'Http
-parseUrlHttp = undefined
-
-parseUrlHttps :: Text -> Endpoint 'Https
-parseUrlHttps = undefined
+parseUrl :: Text -> Endpoint
+parseUrl = undefined
 
 ----------------------------------------------------------------------------
--- Request body
+-- Request — Body
 
 class HttpBody b where
   type ProvidesBody b :: CanHaveBody
@@ -360,6 +422,11 @@ header :: Text -> Text -> Option
 header = undefined
 
 ----------------------------------------------------------------------------
+-- Request — Optional parameters — Cookies
+
+-- TODO No idea right now.
+
+----------------------------------------------------------------------------
 -- Request — Optional parameters — Authorization
 
 -- Hmm, need to take a look at wreq first…
@@ -367,11 +434,11 @@ header = undefined
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Other
 
-port :: Natural -> Option
+port :: Word -> Option
 port = undefined -- TODO
 
-redirectCount :: Natural -> Option
-redirectCount = undefined -- TODO
+-- redirectCount :: Word -> Option
+-- redirectCount = undefined -- TODO
 
 -- etc.
 
@@ -392,8 +459,6 @@ class RequestComponent a where
   getRequestMod :: a -> Endo L.Request
 
 data CanHaveBody = CanHaveBody | NoBody
-
-data Scheme = Http | Https
 
 percentEncode :: Text -> Text
 percentEncode = undefined
