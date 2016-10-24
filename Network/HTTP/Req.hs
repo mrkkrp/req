@@ -412,7 +412,7 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- > -- https://httpbin.org/encoding/utf8
 -- > https "httpbin.org" /: "encoding" /: "utf8"
 --
--- > -- https://юникод.рф
+-- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 -- > https "юникод.рф"
 
 data Url = Url Bool (NonEmpty Text)
