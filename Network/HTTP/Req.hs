@@ -107,10 +107,10 @@ module Network.HTTP.Req
   , PATCH   (..)
   , HttpMethod (..)
     -- ** URL
+  , Url
   , http
   , https
   , (/:)
-  , Endpoint
     -- ** Body
   , HttpBody (..) -- TODO more stuff here
     -- ** Optional parameters
@@ -138,6 +138,7 @@ import Data.ByteString
 import Data.Data (Data)
 import Data.Default.Class
 import Data.IORef
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Proxy
 import Data.Semigroup hiding (Option)
 import Data.Text (Text)
@@ -145,8 +146,11 @@ import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.Binary.Builder          as R
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
+import qualified Data.List.NonEmpty           as NE
+import qualified Data.Text.Encoding           as T
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
 import qualified Network.HTTP.Client.Internal as LI
@@ -172,7 +176,7 @@ req
      , HttpResponse response
      , AllowsBody   method ~ ProvidesBody body )
   => method            -- ^ HTTP method
-  -> Endpoint          -- ^ Endpoint to make the request against
+  -> Url               -- ^ 'Url' — location of resource
   -> body              -- ^ Body of the request
   -> Option            -- ^ Collection of optional parameters
   -> m response        -- ^ Response
@@ -384,32 +388,60 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 ----------------------------------------------------------------------------
 -- Request — URL
 
-newtype Endpoint = Endpoint { unEndpoint :: Text }
+-- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
+-- specifying the scheme and host at the same time. Then use the @('/:')@
+-- constructor to grow path one piece at a time. Every single piece of path
+-- will be url(percent)-encoded, so @('/:')@ is the only way to have forward
+-- slashes between path segments. This approach makes working with dynamic
+-- path segments easy and safe. See examples below how to represent various
+-- 'Url's (make sure the @OverloadedStrings@ language extension is enabled).
+--
+-- ==== __Examples__
+--
+-- > -- http://httpbin.org
+-- > http "httpbin.org"
+--
+-- > -- https://httpbin.org
+-- > https "httpbin.org"
+--
+-- > -- https://httpbin.org/encoding/utf8
+-- > https "httpbin.org" /: "encoding" /: "utf8"
+--
+-- > -- https://юникод.рф
+-- > https "юникод.рф"
 
-instance RequestComponent Endpoint where
-  getRequestMod _ = undefined -- TODO
+data Url = Url Bool (NonEmpty Text)
+  -- NOTE The first 'Bool' value specifies if the 'Url' has “https” as its
+  -- scheme (otherwise “http” is assumed). The second value is path segments
+  -- in reversed order.
+  deriving (Eq, Ord, Data, Typeable, Generic)
 
--- data Endpoint (s :: Scheme) where
---   Http'  :: Text -> Endpoint 'Http
---   Https' :: Text -> Endpoint 'Https
---   (:/) :: Endpoint s -> Text -> Endpoint s
+-- | Given host name, produce a 'Url' which have “http” as its scheme and
+-- empty path. This also sets port to @80@.
 
-http :: Text -> Endpoint
-http = Endpoint . percentEncode
+http :: Text -> Url
+http = Url False . pure
 
-https :: Text -> Endpoint
-https = Endpoint . percentEncode
+-- | Given host name, produce a 'Url' which have “https” as its scheme and
+-- empty path. This also sets port to @443@.
+
+https :: Text -> Url
+https = Url True . pure
+
+-- | Grow given 'Url' appending a single path segment to it.
 
 infixl 5 /:
+(/:) :: Url -> Text -> Url
+Url secure path /: segment = Url secure (NE.cons segment path)
 
-(/:) :: Endpoint -> Text -> Endpoint
-(/:) = undefined -- TODO
-
--- TODO Escape things in endpoint and query parameters, only :/ should work
--- as real /
-
-parseUrl :: Text -> Endpoint
-parseUrl = undefined
+instance RequestComponent Url where
+  getRequestMod (Url secure segments) = Endo $ \x ->
+    let (host :| path) = NE.reverse segments in
+    x { L.secure = secure
+      , L.port   = if secure then 443 else 80
+      , L.host   = Y.urlEncode False (T.encodeUtf8 host)
+      , L.path   =
+          (BL.toStrict . R.toLazyByteString . Y.encodePathSegments) path }
 
 ----------------------------------------------------------------------------
 -- Request — Body
@@ -418,10 +450,10 @@ class HttpBody b where
   type ProvidesBody b :: CanHaveBody
   getReqestBody :: b -> ByteString -- FIXME should use a conduit here
 
-data UrlEncodedParam = UrlEncodedParam Text (Maybe Text)
+data FormUrlEncodedParam = FormUrlEncodedParam Text (Maybe Text)
 
-instance QueryParam UrlEncodedParam where
-  queryParam = UrlEncodedParam
+instance QueryParam FormUrlEncodedParam where
+  queryParam = FormUrlEncodedParam
 
 instance HttpBody b => RequestComponent (Womb "body" b) where
   getRequestMod = undefined -- FIXME
@@ -511,12 +543,37 @@ class HttpResponse response where
 ----------------------------------------------------------------------------
 -- Other
 
-newtype Womb (tag :: Symbol) a = Womb { unWomb :: a }
+-- | The main class for things that are “parts” of 'L.Request' in the sense
+-- that if we have a 'L.Request', then we know how to apply an instance of
+-- 'RequestComponent' changing\/overwriting something in it. 'Endo' is
+-- endomorphism of functions under composition, it's used to chain different
+-- request component easier using @('<>')@.
 
 class RequestComponent a where
+
+  -- | Get a function that takes a 'L.Request' and changes it somehow
+  -- returning another 'L.Request'. For example HTTP method instance of
+  -- 'RequestComponent' just overwrites method. The function is wrapped in
+  -- 'Endo' so it's easier to chain such “modifying applications” together
+  -- building bigger and bigger 'RequestComponent's.
+
   getRequestMod :: a -> Endo L.Request
 
-data CanHaveBody = CanHaveBody | NoBody
+-- | This wrapper is only used to attach a type-level tag to given type.
+-- This is necessary to define instances of 'RequestComponent' for any thing
+-- that implements 'HttpMethod' or 'HttpBody'. Without the tag, GHC is not
+-- able to see difference between @'HttpMethod' method => 'RequestComponent'
+-- method@ and @'HttpBody' body => 'RequestComponent' body@ when it decides
+-- which instance to use (i.e. constraints are taken into account later,
+-- when instance is already chosen).
 
-percentEncode :: Text -> Text
-percentEncode = undefined
+newtype Womb (tag :: Symbol) a = Womb a
+
+-- | A simple 'Bool'-like type we only have for better error messages. We
+-- use it as a kind and its data constructors as type-level tags.
+--
+-- See also: 'HttpMethod' and 'HttpBody'.
+
+data CanHaveBody
+  = CanHaveBody        -- ^ Indeed can have a body
+  | NoBody             -- ^ Should not have a body

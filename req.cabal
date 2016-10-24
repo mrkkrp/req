@@ -58,6 +58,7 @@ flag dev
 library
   build-depends:      aeson            >= 0.11    && < 1.1
                     , base             >= 4.7     && < 5.0
+                    , binary           >= 0.8     && < 0.9
                     , bytestring       >= 0.2     && < 0.11
                     , connection       >= 0.2.2   && < 0.3
                     , data-default-class
