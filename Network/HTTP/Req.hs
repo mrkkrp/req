@@ -8,7 +8,7 @@
 -- Portability :  portable
 --
 -- This is an easy-to-use, type-safe, expandable, high-level HTTP library
--- that just works without fooling around.
+-- that just works without any fooling around.
 --
 -- /(A modest intro goes here, click on 'req' to start making requests.)/
 --
@@ -19,19 +19,17 @@
 -- currently modify 'L.ManagerSettings' of default manager because the
 -- library always use the same implicit global manager for simplicity and
 -- maximal connection sharing. There is a way to use your own manager with
--- different settings, but it requires a bit more typing. Just like with my
--- other library, Megaparsec, I spent considerable amount of time working on
--- the documentation and examples, because doing HTTP requests is a common
--- task and Haskell library for this should be very approachable and clear
--- to beginners.
+-- different settings, but it requires a bit more typing. Doing HTTP
+-- requests is a common task and Haskell library for this should be very
+-- approachable and clear to beginners.
 --
 -- “Type-safe” means that the library is protective and eliminates certain
 -- class of errors compared to alternative libraries like @wreq@ or vanilla
--- @http-client@. For example it makes sure user does not send request body
--- when using methods like 'GET' or 'DELETE', minimizes amount of implicit
--- assumptions making user specify his\/her intentions in explicit form (for
--- example it's not possible to avoid specifying body or method of a
--- request). It carefully hides underlying types from lower-level
+-- @http-client@. For example it makes sure that user does not send request
+-- body when using methods like 'GET' or 'DELETE', minimizes amount of
+-- implicit assumptions making user specify his\/her intentions in explicit
+-- form (for example it's not possible to avoid specifying body or method of
+-- a request). It carefully hides underlying types from lower-level
 -- @http-client@ package because it's not type safe enough (for example
 -- 'L.Request' is an instance of 'Data.String.IsString' and if it's
 -- malformed, it will blow up at run-time).
@@ -39,10 +37,10 @@
 -- “Expandable” refers to the ability of the library to be expanded without
 -- ugly hacking. For example it's possible to define your own HTTP methods,
 -- new ways to construct body of request, new authorization options, new
--- ways to actually perform request and how to represent\/parse it. As user
--- extends the library to satisfy his\/her special needs, the new solutions
--- work just like built-ins. That said, all common cases are covered by the
--- library out-of-the-box.
+-- ways to actually perform request and how to represent\/parse its
+-- response. As user extends the library to satisfy his\/her special needs,
+-- the new solutions work just like built-ins. That said, all common cases
+-- are covered by the library out-of-the-box.
 --
 -- “High-level” means that there are less details to worry about. The
 -- library is a result of my experiences as a Haskell consultant, working
@@ -52,12 +50,12 @@
 -- concerned with purity: just define 'handleHttpException' accordingly when
 -- making your monad instance of 'MonadHttp' and it will play seamlessly.
 -- Finally, the library cuts boilerplate considerably and helps write
--- concise, easy to read code, thanks to its minimal and very uniform API.
+-- concise, easy to read code, thanks to its minimal and uniform API.
 --
 -- The documentation below is structured in such a way that most important
 -- information goes first: you learn how to do HTTP requests, then how to
--- embed them any monad you have, then it goes on giving you details about
--- less-common things you may want to know about. The documentation is
+-- embed them in any monad you have, then it goes on giving you details
+-- about less-common things you may want to know about. The documentation is
 -- written with sufficient coverage of details and examples, it's designed
 -- to be a complete tutorial on its own.
 --
@@ -68,7 +66,7 @@
 --     * <https://hackage.haskell.org/package/http-client> — low level HTTP
 --       client used everywhere in Haskell.
 --     * <https://hackage.haskell.org/package/http-client-tls> — TLS (HTTPS)
---       support.
+--       support for @http-client@.
 --     * <https://hackage.haskell.org/package/http-conduit> — conduit
 --       interface to @http-client@.
 --
@@ -80,15 +78,11 @@
 {-# LANGUAGE DeriveDataTypeable                 #-}
 {-# LANGUAGE DeriveGeneric                      #-}
 {-# LANGUAGE FlexibleInstances                  #-}
-{-# LANGUAGE GADTs                              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving         #-}
 {-# LANGUAGE KindSignatures                     #-}
-{-# LANGUAGE MultiParamTypeClasses              #-}
-{-# LANGUAGE OverloadedStrings                  #-}
 {-# LANGUAGE RecordWildCards                    #-}
 {-# LANGUAGE ScopedTypeVariables                #-}
 {-# LANGUAGE TypeFamilies                       #-}
-{-# LANGUAGE UndecidableInstances               #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
 module Network.HTTP.Req
@@ -151,12 +145,13 @@ import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Data.ByteString         as B
-import qualified Data.ByteString.Lazy    as BL
-import qualified Network.Connection      as NC
-import qualified Network.HTTP.Client     as L
-import qualified Network.HTTP.Client.TLS as L
-import qualified Network.HTTP.Types      as Y
+import qualified Data.ByteString              as B
+import qualified Data.ByteString.Lazy         as BL
+import qualified Network.Connection           as NC
+import qualified Network.HTTP.Client          as L
+import qualified Network.HTTP.Client.Internal as LI
+import qualified Network.HTTP.Client.TLS      as L
+import qualified Network.HTTP.Types           as Y
 
 ----------------------------------------------------------------------------
 -- Making a request
@@ -193,24 +188,17 @@ req method url body options = do
   liftIO (try $ getHttpResponse manager request)
     >>= either handleHttpException return
 
-----------------------------------------------------------------------------
--- Embedding requests into your monad
-
--- $embedding-requests
---
--- To use 'req' in your monad, all you need to do is to make it an instance
--- of the 'MonadHttp' type class, which see.
-
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
 -- settings, so users don't need to deal with this manager stuff at all, but
 -- when we create a request, instance 'HttpConfig' can affect the default
 -- settings via 'getHttpConfig'.
 --
--- A note about safety in case 'unsafePerformIO' looks suspicious to you.
+-- A note about safety, in case 'unsafePerformIO' looks suspicious to you.
 -- The value of 'globalManager' is named and lives on top level. This means
 -- it will be shared, i.e. computed only once on first use of manager. From
 -- that moment on the 'IORef' will be just reused — exactly the behaviour we
--- want here in order to maximize connection sharing.
+-- want here in order to maximize connection sharing. GHC could spoil the
+-- plan by inlining the definition, hence the @NOINLINE@ pragma.
 
 globalManager :: IORef L.Manager
 globalManager = unsafePerformIO $ do
@@ -219,6 +207,14 @@ globalManager = unsafePerformIO $ do
   manager <- L.newManager settings
   newIORef manager
 {-# NOINLINE globalManager #-}
+
+----------------------------------------------------------------------------
+-- Embedding requests into your monad
+
+-- $embedding-requests
+--
+-- To use 'req' in your monad, all you need to do is to make the monad an
+-- instance of the 'MonadHttp' type class, which see.
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
@@ -257,18 +253,23 @@ data HttpConfig = HttpConfig
   , httpConfigRedirectCount :: Word
     -- ^ How many redirects to follow when getting a resource. Default
     -- value: 10.
-  } deriving (Show, Read, Eq, Ord, Typeable, Generic)
-    -- ↑ NOTE We can't derive 'Data' here because of 'L.Proxy'.
+  , httpConfigAltManager :: Maybe L.Manager
+    -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
+    -- that default implicit manager will be used (that's what you want in
+    -- 99% of cases).
+  } deriving Typeable
 
 instance Default HttpConfig where
   def = HttpConfig
     { httpConfigProxy         = Nothing
-    , httpConfigRedirectCount = 10 }
+    , httpConfigRedirectCount = 10
+    , httpConfigAltManager    = Nothing }
 
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->
-    x { L.proxy         = httpConfigProxy
-      , L.redirectCount = fromIntegral httpConfigRedirectCount }
+    x { L.proxy                   = httpConfigProxy
+      , L.redirectCount           = fromIntegral httpConfigRedirectCount
+      , LI.requestManagerOverride = httpConfigAltManager }
 
 ----------------------------------------------------------------------------
 -- Request — Methods
@@ -375,9 +376,6 @@ class HttpMethod a where
   -- | Return name of the method as a 'ByteString'.
 
   httpMethodName :: Proxy a -> Y.Method
-
--- NOTE Now we state how to get an endomorphism on 'Request's that changes
--- given 'Request' so it has the specified method.
 
 instance HttpMethod method => RequestComponent (Womb "method" method) where
   getRequestMod _ = Endo $ \x ->
