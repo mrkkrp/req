@@ -184,11 +184,16 @@ req method url body options = do
   config  <- getHttpConfig
   manager <- liftIO (readIORef globalManager)
   let request = flip appEndo L.defaultRequest $
-        getRequestMod (Womb method :: Womb "method" method) <>
-        getRequestMod url                                   <>
-        getRequestMod (Womb body   :: Womb "body"   body)   <>
+        -- NOTE Order of 'mappend's matters, here method is overwritten
+        -- first and 'config' takes its effect last. In particular, this
+        -- means that 'options' can overwrite things set by 'url' and
+        -- 'body', which is useful for setting port number, "Content-Type"
+        -- header, etc.
+        getRequestMod config                                <>
         getRequestMod options                               <>
-        getRequestMod config
+        getRequestMod (Womb body   :: Womb "body"   body)   <>
+        getRequestMod url                                   <>
+        getRequestMod (Womb method :: Womb "method" method)
   liftIO (try $ getHttpResponse manager request)
     >>= either handleHttpException return
 
