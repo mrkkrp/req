@@ -25,14 +25,15 @@
 --
 -- “Type-safe” means that the library is protective and eliminates certain
 -- class of errors compared to alternative libraries like @wreq@ or vanilla
--- @http-client@. For example it makes sure that user does not send request
--- body when using methods like 'GET' or 'DELETE', minimizes amount of
--- implicit assumptions making user specify his\/her intentions in explicit
--- form (for example it's not possible to avoid specifying body or method of
--- a request). It carefully hides underlying types from lower-level
--- @http-client@ package because it's not type safe enough (for example
--- 'L.Request' is an instance of 'Data.String.IsString' and if it's
--- malformed, it will blow up at run-time).
+-- @http-client@. For example we have correct-by-construction 'Url's, it's
+-- guaranteed that user does not send request body when using methods like
+-- 'GET' or 'DELETE', amount of implicit assumptions is minimized by making
+-- user specify his\/her intentions in explicit form (for example it's not
+-- possible to avoid specifying body or method of a request). It carefully
+-- hides underlying types from lower-level @http-client@ package because
+-- it's not type safe enough (for example 'L.Request' is an instance of
+-- 'Data.String.IsString' and if it's malformed, it will blow up at
+-- run-time).
 --
 -- “Expandable” refers to the ability of the library to be expanded without
 -- ugly hacking. For example it's possible to define your own HTTP methods,
@@ -403,17 +404,20 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 --
 -- ==== __Examples__
 --
--- > -- http://httpbin.org
 -- > http "httpbin.org"
+-- > -- http://httpbin.org
 --
--- > -- https://httpbin.org
 -- > https "httpbin.org"
+-- > -- https://httpbin.org
 --
--- > -- https://httpbin.org/encoding/utf8
 -- > https "httpbin.org" /: "encoding" /: "utf8"
+-- > -- https://httpbin.org/encoding/utf8
 --
--- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
+-- > https "httpbin.org" /: "foo" /: "bar/baz"
+-- > -- https://httpbin.org/foo/bar%2Fbaz
+--
 -- > https "юникод.рф"
+-- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 
 data Url = Url Bool (NonEmpty Text)
   -- NOTE The first 'Bool' value specifies if the 'Url' has “https” as its
