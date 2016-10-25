@@ -124,7 +124,7 @@ module Network.HTTP.Req
     -- *** Headers
   , header
     -- *** Cookies
-    -- *** Authorization
+    -- *** Authentication
     -- *** Other
   , port
     -- * Response
@@ -133,7 +133,7 @@ module Network.HTTP.Req
   , CanHaveBody (..) )
 where
 
-import Control.Arrow (first)
+import Control.Arrow (first, second)
 import Control.Exception (try)
 import Control.Monad.IO.Class
 import Data.Aeson
@@ -152,6 +152,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Binary.Builder          as R
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
+import qualified Data.CaseInsensitive         as CI
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Text.Encoding           as T
 import qualified Network.Connection           as NC
@@ -492,6 +493,18 @@ newtype Option = Option (Endo (Y.QueryText, L.Request))
   -- time new parameter is added.
   deriving (Semigroup, Monoid)
 
+-- | A helper to create an 'Option' that modifies only collection of query
+-- parameters. This helper is not a part of public API.
+
+withQueryParams :: (Y.QueryText -> Y.QueryText) -> Option
+withQueryParams = Option . Endo . first
+
+-- | A helper to create an 'Option' that modifies only 'L.Request'. This
+-- helper is not a part of public API.
+
+withRequest :: (L.Request -> L.Request) -> Option
+withRequest = Option . Endo . second
+
 instance RequestComponent Option where
   getRequestMod (Option f) = Endo $ \x ->
     let (qparams, x') = appEndo f ([], x)
@@ -540,13 +553,22 @@ class QueryParam a where
   queryParam :: Text -> Maybe Text -> a
 
 instance QueryParam Option where
-  queryParam name mvalue = (Option . Endo . first) ((:) (name, mvalue))
+  queryParam name mvalue = withQueryParams ((:) (name, mvalue))
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Headers
 
-header :: Text -> Text -> Option
-header = undefined
+-- | Create an 'Option' that adds a header. The 'Text' values will be
+-- inserted in UTF-8 encoding.
+
+header
+  :: Text              -- ^ Header name
+  -> Text              -- ^ Header value
+  -> Option
+header name value = withRequest $ \x ->
+  let name'  = T.encodeUtf8 name
+      value' = T.encodeUtf8 value
+  in x { L.requestHeaders = (CI.mk name', value') : L.requestHeaders x }
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Cookies
@@ -554,20 +576,28 @@ header = undefined
 -- TODO No idea right now.
 
 ----------------------------------------------------------------------------
--- Request — Optional parameters — Authorization
+-- Request — Optional parameters — Authentication
 
--- Hmm, need to take a look at wreq first…
+-- TODO basicAuth
+-- TODO oAuth1
+-- TODO oAuth2Bearer
+-- TODO oAuth2Token
+-- TODO awsAuth
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Other
 
+-- | Specify the port to connect to explicitly. Normally, 'Url' you use
+-- determines default port, @80@ for HTTP and @443@ for HTTPS, this 'Option'
+-- allows to choose arbitrary port overwriting the defaults.
+
 port :: Word -> Option
-port = undefined -- TODO
+port n = withRequest $ \x ->
+  x { L.port = fromIntegral n }
 
--- redirectCount :: Word -> Option
--- redirectCount = undefined -- TODO
-
--- etc.
+-- TODO decompress
+-- TODO responseTimeout
+-- TODO requestVersion
 
 ----------------------------------------------------------------------------
 -- Response
