@@ -29,10 +29,10 @@
 -- guaranteed that user does not send request body when using methods like
 -- 'GET' or 'DELETE', amount of implicit assumptions is minimized by making
 -- user specify his\/her intentions in explicit form (for example it's not
--- possible to avoid specifying body or method of a request). It carefully
--- hides underlying types from lower-level @http-client@ package because
--- it's not type safe enough (for example 'L.Request' is an instance of
--- 'Data.String.IsString' and if it's malformed, it will blow up at
+-- possible to avoid specifying body or method of a request). The library
+-- carefully hides underlying types from lower-level @http-client@ package
+-- because it's not type safe enough (for example 'L.Request' is an instance
+-- of 'Data.String.IsString' and if it's malformed, it will blow up at
 -- run-time).
 --
 -- “Expandable” refers to the ability of the library to be expanded without
@@ -115,6 +115,7 @@ module Network.HTTP.Req
     -- ** Body
   , HttpBody (..) -- TODO more stuff here
     -- ** Optional parameters
+    -- $request-optional-parameters
   , Option
     -- *** Query parameters
   , (=:)
@@ -132,6 +133,7 @@ module Network.HTTP.Req
   , CanHaveBody (..) )
 where
 
+import Control.Arrow (first)
 import Control.Exception (try)
 import Control.Monad.IO.Class
 import Data.Aeson
@@ -256,14 +258,14 @@ class MonadIO m => MonadHttp m where
 -- making HTTP requests.
 
 data HttpConfig = HttpConfig
-  { httpConfigProxy :: Maybe L.Proxy
+  { httpConfigProxy :: !(Maybe L.Proxy)
     -- ^ Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
     -- environment variables are respected, this setting overwrites them.
     -- Default value: 'Nothing'.
-  , httpConfigRedirectCount :: Word
+  , httpConfigRedirectCount :: !Word
     -- ^ How many redirects to follow when getting a resource. Default
     -- value: 10.
-  , httpConfigAltManager :: Maybe L.Manager
+  , httpConfigAltManager :: !(Maybe L.Manager)
     -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
     -- that default implicit manager will be used (that's what you want in
     -- 99% of cases).
@@ -467,50 +469,78 @@ instance QueryParam FormUrlEncodedParam where
 instance HttpBody b => RequestComponent (Womb "body" b) where
   getRequestMod = undefined -- FIXME
 
--- data ReqBody (b :: HasBody) where
---   NoReqBody  ::                  ReqBody 'NoBody
---   ReqBodyLBS :: BL.ByteString -> ReqBody 'HasBody
---   ReqBodyBS  :: B.ByteString  -> ReqBody 'HasBody
---   ReqBodyBuilder :: Builder   -> ReqBody 'HasBody
---   ReqBodyUrlEncoded :: [(Text,Text)] -> ReqBody 'HasBody
---   --  ↑ use something nicer than tuples? (:=) pairs perhaps? The pairs
---   --  should represent query parameters and body of url encoded stuff at the
---   --  same time.
---   ReqBodyJSON :: Value -> ReqBody 'HasBody
---   -- TODO add more? add conduit support and depend on http-conduit
-
 ----------------------------------------------------------------------------
 -- Request — Optional parameters
 
--- | Opaque 'Option' type is a 'Monoid' you can use to pack collection of
--- optional parameters like query parameters and headers. We also provide
--- authorization helpers out-of-the-box which are also of this type.
+-- $request-optional-parameters
+--
+-- Optional parameters to a request include things like query parameters,
+-- headers, port number, etc. All optional parameters have the type
+-- 'Option', which is a 'Monoid'. This means that you can use 'mempty' as
+-- the last argument of 'req' to specify no optional parameters, or combine
+-- 'Option's using 'mappend' (or @('<>')@) to have several of them at once.
 
-newtype Option = Option { unOption :: Endo L.Request }
+-- | Opaque 'Option' type is a 'Monoid' you can use to pack collection of
+-- optional parameters like query parameters and headers. See sections below
+-- to learn which 'Option' primitives are available.
+
+-- TODO We need examples here.
+
+newtype Option = Option (Endo (Y.QueryText, L.Request))
+  -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
+  -- Request to avoid appending to existing query string in request every
+  -- time new parameter is added.
   deriving (Semigroup, Monoid)
 
 instance RequestComponent Option where
-  getRequestMod = unOption
+  getRequestMod (Option f) = Endo $ \x ->
+    let (qparams, x') = appEndo f ([], x)
+        query         = Y.renderQuery True (Y.queryTextToQuery qparams)
+    in x' { L.queryString = query }
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Query Parameters
 
--- | Synonym of '(=:)' in form of function, not operator.
+-- | This operator builds a query parameter that will be included in URL of
+-- your request after question sign @?@. This is the same syntax you use
+-- with form URL encoded request bodies.
+--
+-- This operator is defined in terms of 'queryParam':
+--
+-- > name =: value = queryParam name (pure value)
 
 infix 7 =:
 (=:) :: QueryParam a => Text -> Text -> a
 name =: value = queryParam name (pure value)
 
--- |
+-- | Construct a flag, that is, valueless query parameter. For example, in
+-- the following URL @a@ is a flag, @b@ is a query parameter with a value:
+--
+-- > https://httpbin.org/foo/bar?a&b=10
+--
+-- This operator is defined in terms of 'queryParam':
+--
+-- > queryFlag name = queryParam name Nothing
 
 queryFlag :: QueryParam a => Text -> a
 queryFlag name = queryParam name Nothing
 
+-- | A type class for query-parameter-like things. The reason to have
+-- overloaded 'queryParam' is to be able to use as an 'Option' and as a
+-- 'FormUrlEncodedParam' when constructing form URL encoded request bodies.
+-- Having the same syntax for these cases seems natural and user-friendly.
+
 class QueryParam a where
+
+  -- | Create a query parameter with given name and value. If value is
+  -- 'Nothing', it won't be included at all (i.e. you create a flag this
+  -- way). It's recommended to use @('=:')@ and 'queryFlag' instead of this
+  -- method, because they are easier to read.
+
   queryParam :: Text -> Maybe Text -> a
 
 instance QueryParam Option where
-  queryParam = undefined -- TODO
+  queryParam name mvalue = (Option . Endo . first) ((:) (name, mvalue))
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Headers
