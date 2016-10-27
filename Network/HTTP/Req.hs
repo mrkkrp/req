@@ -81,6 +81,7 @@
 {-# LANGUAGE FlexibleInstances                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving         #-}
 {-# LANGUAGE KindSignatures                     #-}
+{-# LANGUAGE OverloadedStrings                  #-}
 {-# LANGUAGE RecordWildCards                    #-}
 {-# LANGUAGE ScopedTypeVariables                #-}
 {-# LANGUAGE TypeFamilies                       #-}
@@ -125,12 +126,19 @@ module Network.HTTP.Req
   , header
     -- *** Cookies
     -- *** Authentication
+    -- $request-optional-parameters-authentication
+  , basicAuth
+  , oAuth1
+  , oAuth2Bearer
+  , oAuth2Token
+  , awsAuth
     -- *** Other
   , port
     -- * Response
   , HttpResponse (..)
     -- * Other
-  , CanHaveBody (..) )
+  , CanHaveBody (..)
+  , Scheme (..) )
 where
 
 import Control.Arrow (first, second)
@@ -173,16 +181,16 @@ import qualified Network.HTTP.Types           as Y
 -- TODO Finish docs of this function when the package is more developed.
 
 req
-  :: forall m method body response.
+  :: forall m method body response scheme.
      ( MonadHttp    m
      , HttpMethod   method
      , HttpBody     body
      , HttpResponse response
      , AllowsBody   method ~ ProvidesBody body )
   => method            -- ^ HTTP method
-  -> Url               -- ^ 'Url' — location of resource
+  -> Url scheme        -- ^ 'Url' — location of resource
   -> body              -- ^ Body of the request
-  -> Option            -- ^ Collection of optional parameters
+  -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
 req method url body options = do
   config  <- getHttpConfig
@@ -422,7 +430,7 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- > https "юникод.рф"
 -- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 
-data Url = Url Bool (NonEmpty Text)
+data Url (scheme :: Scheme) = Url Bool (NonEmpty Text)
   -- NOTE The first 'Bool' value specifies if the 'Url' has “https” as its
   -- scheme (otherwise “http” is assumed). The second value is path segments
   -- in reversed order.
@@ -431,22 +439,22 @@ data Url = Url Bool (NonEmpty Text)
 -- | Given host name, produce a 'Url' which have “http” as its scheme and
 -- empty path. This also sets port to @80@.
 
-http :: Text -> Url
+http :: Text -> Url 'Http
 http = Url False . pure
 
 -- | Given host name, produce a 'Url' which have “https” as its scheme and
 -- empty path. This also sets port to @443@.
 
-https :: Text -> Url
+https :: Text -> Url 'Https
 https = Url True . pure
 
 -- | Grow given 'Url' appending a single path segment to it.
 
 infixl 5 /:
-(/:) :: Url -> Text -> Url
+(/:) :: Url scheme -> Text -> Url scheme
 Url secure path /: segment = Url secure (NE.cons segment path)
 
-instance RequestComponent Url where
+instance RequestComponent (Url scheme) where
   getRequestMod (Url secure segments) = Endo $ \x ->
     let (host :| path) = NE.reverse segments in
     x { L.secure = secure
@@ -487,7 +495,7 @@ instance HttpBody b => RequestComponent (Womb "body" b) where
 
 -- TODO We need examples here.
 
-newtype Option = Option (Endo (Y.QueryText, L.Request))
+newtype Option (scheme :: Scheme) = Option (Endo (Y.QueryText, L.Request))
   -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
   -- Request to avoid appending to existing query string in request every
   -- time new parameter is added.
@@ -496,16 +504,16 @@ newtype Option = Option (Endo (Y.QueryText, L.Request))
 -- | A helper to create an 'Option' that modifies only collection of query
 -- parameters. This helper is not a part of public API.
 
-withQueryParams :: (Y.QueryText -> Y.QueryText) -> Option
+withQueryParams :: (Y.QueryText -> Y.QueryText) -> Option scheme
 withQueryParams = Option . Endo . first
 
 -- | A helper to create an 'Option' that modifies only 'L.Request'. This
 -- helper is not a part of public API.
 
-withRequest :: (L.Request -> L.Request) -> Option
+withRequest :: (L.Request -> L.Request) -> Option scheme
 withRequest = Option . Endo . second
 
-instance RequestComponent Option where
+instance RequestComponent (Option scheme) where
   getRequestMod (Option f) = Endo $ \x ->
     let (qparams, x') = appEndo f ([], x)
         query         = Y.renderQuery True (Y.queryTextToQuery qparams)
@@ -552,23 +560,20 @@ class QueryParam a where
 
   queryParam :: Text -> Maybe Text -> a
 
-instance QueryParam Option where
+instance QueryParam (Option scheme) where
   queryParam name mvalue = withQueryParams ((:) (name, mvalue))
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Headers
 
--- | Create an 'Option' that adds a header. The 'Text' values will be
--- inserted in UTF-8 encoding.
+-- | Create an 'Option' that adds a header.
 
 header
-  :: Text              -- ^ Header name
-  -> Text              -- ^ Header value
-  -> Option
+  :: ByteString        -- ^ Header name
+  -> ByteString        -- ^ Header value
+  -> Option scheme
 header name value = withRequest $ \x ->
-  let name'  = T.encodeUtf8 name
-      value' = T.encodeUtf8 value
-  in x { L.requestHeaders = (CI.mk name', value') : L.requestHeaders x }
+  x { L.requestHeaders = (CI.mk name, value) : L.requestHeaders x }
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Cookies
@@ -578,11 +583,64 @@ header name value = withRequest $ \x ->
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Authentication
 
--- TODO basicAuth
--- TODO oAuth1
--- TODO oAuth2Bearer
--- TODO oAuth2Token
--- TODO awsAuth
+-- $request-optional-parameters-authentication
+--
+-- TODO Something. You should always prefer authentication 'Option's to
+-- manual construction of headers, etc., because it's a better style and
+-- provides additional type safety that prevents leaking of credentials.
+
+oAuth1
+  :: ByteString        -- ^ Consumer token
+  -> ByteString        -- ^ Consumer secret
+  -> ByteString        -- ^ OAuth token
+  -> ByteString        -- ^ OAuth token secret
+  -> Option scheme
+oAuth1 = undefined -- TODO
+
+-- | The 'Option' adds basic authentication. The 'Text' values will be UTF-8
+-- encoded.
+--
+-- See also: <https://en.wikipedia.org/wiki/Basic_access_authentication>
+
+basicAuth
+  :: ByteString        -- ^ Username
+  -> ByteString        -- ^ Password
+  -> Option 'Https     -- ^ Auth 'Option'
+basicAuth username password = withRequest
+  (L.applyBasicAuth username password)
+
+-- | The 'Option' adds an OAuth2 bearer token. This is treated by many
+-- services as the equivalent of a username and password.
+--
+-- The 'Option' is defined as:
+--
+-- > oAuth2Bearer token = header "Authorization" ("Bearer " <> token)
+
+oAuth2Bearer
+  :: ByteString        -- ^ Token
+  -> Option 'Https     -- ^ Auth 'Option'
+oAuth2Bearer token = header "Authorization" ("Bearer " <> token)
+
+-- | The 'Option' adds a not-quite-standard OAuth2 bearer token (that seems
+-- to be used only by GitHub). This will be treated by whatever services
+-- accept it as the equivalent of a username and password.
+--
+-- The 'Option' is defined as:
+--
+-- > oAuth2Token token = header "Authorization" ("token" <> token)
+
+oAuth2Token
+  :: ByteString        -- ^ Token
+  -> Option 'Https     -- ^ Auth 'Option'
+oAuth2Token token = header "Authorization" ("token" <> token)
+
+-- | The 'Option' adds AWS v4 request signature.
+
+awsAuth
+  :: ByteString        -- ^ AWS access key
+  -> ByteString        -- ^ AWS secret access key
+  -> Option 'Https     -- ^ Auth 'Option'
+awsAuth accessKey secretKey = undefined -- TODO
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Other
@@ -591,7 +649,7 @@ header name value = withRequest $ \x ->
 -- determines default port, @80@ for HTTP and @443@ for HTTPS, this 'Option'
 -- allows to choose arbitrary port overwriting the defaults.
 
-port :: Word -> Option
+port :: Word -> Option scheme
 port n = withRequest $ \x ->
   x { L.port = fromIntegral n }
 
@@ -646,3 +704,11 @@ newtype Womb (tag :: Symbol) a = Womb a
 data CanHaveBody
   = CanHaveBody        -- ^ Indeed can have a body
   | NoBody             -- ^ Should not have a body
+
+-- | A type-level tag that specifies URL scheme used (and thus if TLS is
+-- enabled). This is used to force TLS requirement for some authentication
+-- 'Option's.
+
+data Scheme
+  = Http               -- ^ HTTP, no TLS
+  | Https              -- ^ HTTPS
