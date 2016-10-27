@@ -134,6 +134,9 @@ module Network.HTTP.Req
   , awsAuth
     -- *** Other
   , port
+  , decompress
+  , responseTimeout
+  , httpVersion
     -- * Response
   , HttpResponse (..)
     -- * Other
@@ -653,9 +656,41 @@ port :: Word -> Option scheme
 port n = withRequest $ \x ->
   x { L.port = fromIntegral n }
 
--- TODO decompress
--- TODO responseTimeout
--- TODO requestVersion
+-- | This 'Option' controls whether gzipped data should be decompressed on
+-- the fly. By default everything except for @application\/x-tar@ is
+-- decompressed, i.e. we have:
+--
+-- > decompress (/= "application/x-tar")
+--
+-- You can also choose to decompress everything like this:
+--
+-- > decompress (const True)
+
+decompress
+  :: (ByteString -> Bool) -- ^ Predicate that is given MIME type, it
+     -- returns 'True' when content should be decompressed on the fly.
+  -> Option scheme
+decompress f = withRequest $ \x ->
+  x { L.decompress = f }
+
+-- | Specify number of microseconds to wait for response. Default is 30
+-- seconds.
+
+responseTimeout
+  :: Word              -- ^ Number of microseconds to wait
+  -> Option scheme
+responseTimeout n = withRequest $ \x ->
+  x { L.responseTimeout = LI.ResponseTimeoutMicro (fromIntegral n) }
+
+-- | HTTP version to send to server, default is HTTP 1.1.
+
+httpVersion
+  :: Word              -- ^ Major version number
+  -> Word              -- ^ Minor version number
+  -> Option scheme
+httpVersion major minor = withRequest $ \x ->
+  x { L.requestVersion =
+        Y.HttpVersion (fromIntegral major) (fromIntegral minor) }
 
 ----------------------------------------------------------------------------
 -- Response
