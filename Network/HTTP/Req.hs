@@ -149,6 +149,7 @@ where
 import Control.Applicative ((<|>))
 import Control.Arrow (first, second)
 import Control.Exception (try)
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString (ByteString)
@@ -275,30 +276,44 @@ class MonadIO m => MonadHttp m where
 -- making HTTP requests.
 
 data HttpConfig = HttpConfig
-  { httpConfigProxy :: !(Maybe L.Proxy)
+  { httpConfigProxy         :: !(Maybe L.Proxy)
     -- ^ Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
     -- environment variables are respected, this setting overwrites them.
     -- Default value: 'Nothing'.
   , httpConfigRedirectCount :: !Word
     -- ^ How many redirects to follow when getting a resource. Default
     -- value: 10.
-  , httpConfigAltManager :: !(Maybe L.Manager)
+  , httpConfigAltManager    :: !(Maybe L.Manager)
     -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
     -- that default implicit manager will be used (that's what you want in
     -- 99% of cases).
+  , httpConfigCheckResponse :: L.Request -> L.Response L.BodyReader -> IO ()
+    -- ^ Check the response immediately after receiving the status and
+    -- headers. This is used for throwing exceptions on non-success status
+    -- codes by default. Throwing is better then just returning a request
+    -- with non-2xx status code because in that case something is wrong and
+    -- we need a way to short-cut execution. The thrown exception is caught
+    -- by the library though and is available in 'handleHttpException',
+    -- which see.
   } deriving Typeable
 
 instance Default HttpConfig where
   def = HttpConfig
     { httpConfigProxy         = Nothing
     , httpConfigRedirectCount = 10
-    , httpConfigAltManager    = Nothing }
+    , httpConfigAltManager    = Nothing
+    , httpConfigCheckResponse = \_ response ->
+        let Y.Status statusCode _ = L.responseStatus response in
+          unless (200 <= statusCode && statusCode < 300) $ do
+            chunk <- BL.toStrict <$> L.brReadSome (L.responseBody response) 1024
+            LI.throwHttp (L.StatusCodeException (() <$ response) chunk) }
 
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->
     x { L.proxy                   = httpConfigProxy
       , L.redirectCount           = fromIntegral httpConfigRedirectCount
-      , LI.requestManagerOverride = httpConfigAltManager }
+      , LI.requestManagerOverride = httpConfigAltManager
+      , LI.checkResponse          = httpConfigCheckResponse }
 
 ----------------------------------------------------------------------------
 -- Request — Methods
