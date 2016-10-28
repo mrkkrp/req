@@ -146,6 +146,7 @@ module Network.HTTP.Req
   , Scheme (..) )
 where
 
+import Control.Applicative ((<|>))
 import Control.Arrow (first, second)
 import Control.Exception (try)
 import Control.Monad.IO.Class
@@ -172,6 +173,8 @@ import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
 import qualified Network.HTTP.Client.Internal as LI
 import qualified Network.HTTP.Client.TLS      as L
+import qualified Network.HTTP.Req.AWS         as AWS
+import qualified Network.HTTP.Req.OAuth1      as OAuth1
 import qualified Network.HTTP.Types           as Y
 
 ----------------------------------------------------------------------------
@@ -537,29 +540,45 @@ instance HttpBody b => RequestComponent (Womb "body" b) where
 
 -- TODO We need examples here.
 
-newtype Option (scheme :: Scheme) = Option (Endo (Y.QueryText, L.Request))
+data Option (scheme :: Scheme) =
+  Option (Endo (Y.QueryText, L.Request)) (Maybe (Endo L.Request))
   -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
   -- Request to avoid appending to existing query string in request every
-  -- time new parameter is added.
-  deriving (Semigroup, Monoid)
+  -- time new parameter is added. Additional Maybe (Endo Request) is a
+  -- finalizer that will be applied after all over options. This is for
+  -- authentication methods that sign requests based on data in Request.
+
+instance Semigroup (Option scheme) where
+  Option er0 mr0 <> Option er1 mr1 = Option
+    (er0 <> er1) (mr0 <|> mr1)
+
+instance Monoid (Option scheme) where
+  mempty  = Option mempty Nothing
+  mappend = (<>)
 
 -- | A helper to create an 'Option' that modifies only collection of query
 -- parameters. This helper is not a part of public API.
 
 withQueryParams :: (Y.QueryText -> Y.QueryText) -> Option scheme
-withQueryParams = Option . Endo . first
+withQueryParams f = Option (Endo (first f)) Nothing
 
 -- | A helper to create an 'Option' that modifies only 'L.Request'. This
 -- helper is not a part of public API.
 
 withRequest :: (L.Request -> L.Request) -> Option scheme
-withRequest = Option . Endo . second
+withRequest f = Option (Endo (second f)) Nothing
+
+-- | A helper to create an 'Option' that adds a finalier (request
+-- endomorphism that is run after all other modifications).
+
+withFinalizer :: (L.Request -> L.Request) -> Option scheme
+withFinalizer f = Option mempty (Just (Endo f))
 
 instance RequestComponent (Option scheme) where
-  getRequestMod (Option f) = Endo $ \x ->
+  getRequestMod (Option f finalizer) = Endo $ \x ->
     let (qparams, x') = appEndo f ([], x)
         query         = Y.renderQuery True (Y.queryTextToQuery qparams)
-    in x' { L.queryString = query }
+    in maybe id appEndo finalizer x' { L.queryString = query }
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Query Parameters
@@ -631,13 +650,16 @@ header name value = withRequest $ \x ->
 -- manual construction of headers, etc., because it's a better style and
 -- provides additional type safety that prevents leaking of credentials.
 
+-- | OAuth 1 authentication 'Option'.
+
 oAuth1
   :: ByteString        -- ^ Consumer token
   -> ByteString        -- ^ Consumer secret
   -> ByteString        -- ^ OAuth token
   -> ByteString        -- ^ OAuth token secret
   -> Option scheme
-oAuth1 = undefined -- TODO
+oAuth1 ctoken csecret otoken osecret = withFinalizer
+  (OAuth1.signRequest ctoken csecret otoken osecret)
 
 -- | The 'Option' adds basic authentication. The 'Text' values will be UTF-8
 -- encoded.
@@ -682,7 +704,8 @@ awsAuth
   :: ByteString        -- ^ AWS access key
   -> ByteString        -- ^ AWS secret access key
   -> Option 'Https     -- ^ Auth 'Option'
-awsAuth accessKey secretKey = undefined -- TODO
+awsAuth accessKey secretKey = withFinalizer
+  (AWS.signRequest accessKey secretKey)
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Other
