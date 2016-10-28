@@ -113,6 +113,8 @@ module Network.HTTP.Req
   , http
   , https
   , (/:)
+  , parseUrlHttp
+  , parseUrlHttps
     -- ** Body
   , HttpBody (..) -- TODO more stuff here
     -- ** Optional parameters
@@ -148,13 +150,13 @@ import Control.Arrow (first, second)
 import Control.Exception (try)
 import Control.Monad.IO.Class
 import Data.Aeson
-import Data.ByteString
+import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Default.Class
 import Data.IORef
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Proxy
-import Data.Semigroup hiding (Option)
+import Data.Semigroup hiding (Option, option)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
 import GHC.Generics
@@ -433,23 +435,21 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- > https "юникод.рф"
 -- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 
-data Url (scheme :: Scheme) = Url Bool (NonEmpty Text)
-  -- NOTE The first 'Bool' value specifies if the 'Url' has “https” as its
-  -- scheme (otherwise “http” is assumed). The second value is path segments
-  -- in reversed order.
-  deriving (Eq, Ord, Data, Typeable, Generic)
+data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
+  -- NOTE The second value is path segments in reversed order.
+  deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
 -- | Given host name, produce a 'Url' which have “http” as its scheme and
 -- empty path. This also sets port to @80@.
 
 http :: Text -> Url 'Http
-http = Url False . pure
+http = Url Http . pure
 
 -- | Given host name, produce a 'Url' which have “https” as its scheme and
 -- empty path. This also sets port to @443@.
 
 https :: Text -> Url 'Https
-https = Url True . pure
+https = Url Https . pure
 
 -- | Grow given 'Url' appending a single path segment to it.
 
@@ -457,11 +457,50 @@ infixl 5 /:
 (/:) :: Url scheme -> Text -> Url scheme
 Url secure path /: segment = Url secure (NE.cons segment path)
 
+-- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
+-- (possibly with some 'Option's) from a 'ByteString'. This is useful when
+-- you are given an URL to query dynamically and don't know it beforehand.
+-- The function parses 'ByteString' because it's a correct type to hold an
+-- URL, as 'Url' cannot contain characters outside of ASCII range, thus we
+-- can consider every character a 'Data.Word.Word8' value.
+--
+-- This function only parses 'Url' (scheme, host, path) and optional query
+-- parameters that are returned as 'Option'. It does not parse method name
+-- or authentication info from given 'ByteString'.
+
+parseUrlHttp :: ByteString -> Maybe (Url 'Http, Option scheme)
+parseUrlHttp url' = do
+  url <- B.stripPrefix "http://" url'
+  (host :| path, option) <- parseUrlHelper url
+  return (foldl (/:) (http host) path, option)
+
+-- | Just like 'parseUrlHttp', but expects “https” scheme.
+
+parseUrlHttps :: ByteString -> Maybe (Url 'Https, Option scheme)
+parseUrlHttps url' = do
+  url <- B.stripPrefix "https://" url'
+  (host :| path, option) <- parseUrlHelper url
+  return (foldl (/:) (https host) path, option)
+
+-- | Get host\/collection of path pieces and possibly query parameters
+-- already converted to 'Option'. This function is not public.
+
+parseUrlHelper :: ByteString -> Maybe (NonEmpty Text, Option scheme)
+parseUrlHelper url = do
+  let (path', query') = B.break (== 0x3f) url
+      query = mconcat (uncurry queryParam <$> Y.parseQueryText query')
+  path <- NE.nonEmpty (Y.decodePathSegments path')
+  return (path, query)
+
 instance RequestComponent (Url scheme) where
-  getRequestMod (Url secure segments) = Endo $ \x ->
+  getRequestMod (Url scheme segments) = Endo $ \x ->
     let (host :| path) = NE.reverse segments in
-    x { L.secure = secure
-      , L.port   = if secure then 443 else 80
+    x { L.secure = case scheme of
+          Http  -> False
+          Https -> True
+      , L.port   = case scheme of
+          Http  -> 80
+          Https -> 443
       , L.host   = Y.urlEncode False (T.encodeUtf8 host)
       , L.path   =
           (BL.toStrict . R.toLazyByteString . Y.encodePathSegments) path }
@@ -747,3 +786,4 @@ data CanHaveBody
 data Scheme
   = Http               -- ^ HTTP, no TLS
   | Https              -- ^ HTTPS
+  deriving (Eq, Ord, Show, Data, Typeable, Generic)
