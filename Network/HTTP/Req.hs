@@ -79,7 +79,6 @@
 {-# LANGUAGE DeriveDataTypeable                 #-}
 {-# LANGUAGE DeriveGeneric                      #-}
 {-# LANGUAGE FlexibleInstances                  #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving         #-}
 {-# LANGUAGE KindSignatures                     #-}
 {-# LANGUAGE OverloadedStrings                  #-}
 {-# LANGUAGE RecordWildCards                    #-}
@@ -583,11 +582,11 @@ withQueryParams f = Option (Endo (first f)) Nothing
 withRequest :: (L.Request -> L.Request) -> Option scheme
 withRequest f = Option (Endo (second f)) Nothing
 
--- | A helper to create an 'Option' that adds a finalier (request
+-- | A helper to create an 'Option' that adds a finalizer (request
 -- endomorphism that is run after all other modifications).
 
-withFinalizer :: (L.Request -> L.Request) -> Option scheme
-withFinalizer f = Option mempty (Just (Endo f))
+asFinalizer :: (L.Request -> L.Request) -> Option scheme
+asFinalizer f = Option mempty (Just (Endo f))
 
 instance RequestComponent (Option scheme) where
   getRequestMod (Option f finalizer) = Endo $ \x ->
@@ -648,7 +647,13 @@ header
   :: ByteString        -- ^ Header name
   -> ByteString        -- ^ Header value
   -> Option scheme
-header name value = withRequest $ \x ->
+header name value = withRequest (attachHeader name value)
+
+-- | A non-public helper that attaches a header with given name and content
+-- to a 'L.Request'.
+
+attachHeader :: ByteString -> ByteString -> L.Request -> L.Request
+attachHeader name value x =
   x { L.requestHeaders = (CI.mk name, value) : L.requestHeaders x }
 
 ----------------------------------------------------------------------------
@@ -664,6 +669,9 @@ header name value = withRequest $ \x ->
 -- TODO Something. You should always prefer authentication 'Option's to
 -- manual construction of headers, etc., because it's a better style and
 -- provides additional type safety that prevents leaking of credentials.
+--
+-- Mention that auth 'Option's overwrite each other unlike other 'Option's,
+-- so several auth options are never active at the same time.
 
 -- | OAuth 1 authentication 'Option'.
 
@@ -673,7 +681,7 @@ oAuth1
   -> ByteString        -- ^ OAuth token
   -> ByteString        -- ^ OAuth token secret
   -> Option scheme
-oAuth1 ctoken csecret otoken osecret = withFinalizer
+oAuth1 ctoken csecret otoken osecret = asFinalizer
   (OAuth1.signRequest ctoken csecret otoken osecret)
 
 -- | The 'Option' adds basic authentication. The 'Text' values will be UTF-8
@@ -685,7 +693,7 @@ basicAuth
   :: ByteString        -- ^ Username
   -> ByteString        -- ^ Password
   -> Option 'Https     -- ^ Auth 'Option'
-basicAuth username password = withRequest
+basicAuth username password = asFinalizer
   (L.applyBasicAuth username password)
 
 -- | The 'Option' adds an OAuth2 bearer token. This is treated by many
@@ -698,7 +706,8 @@ basicAuth username password = withRequest
 oAuth2Bearer
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
-oAuth2Bearer token = header "Authorization" ("Bearer " <> token)
+oAuth2Bearer token = asFinalizer
+  (attachHeader "Authorization" ("Bearer " <> token))
 
 -- | The 'Option' adds a not-quite-standard OAuth2 bearer token (that seems
 -- to be used only by GitHub). This will be treated by whatever services
@@ -711,7 +720,8 @@ oAuth2Bearer token = header "Authorization" ("Bearer " <> token)
 oAuth2Token
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
-oAuth2Token token = header "Authorization" ("token" <> token)
+oAuth2Token token = asFinalizer
+  (attachHeader "Authorization" ("token" <> token))
 
 -- | The 'Option' adds AWS v4 request signature.
 
@@ -719,7 +729,7 @@ awsAuth
   :: ByteString        -- ^ AWS access key
   -> ByteString        -- ^ AWS secret access key
   -> Option 'Https     -- ^ Auth 'Option'
-awsAuth accessKey secretKey = withFinalizer
+awsAuth accessKey secretKey = asFinalizer
   (AWS.signRequest accessKey secretKey)
 
 ----------------------------------------------------------------------------
