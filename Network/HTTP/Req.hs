@@ -133,6 +133,7 @@ module Network.HTTP.Req
   , header
     -- *** Cookies
     -- $cookies
+  , cookieJar
     -- *** Authentication
     -- $authentication
   , basicAuth
@@ -681,6 +682,17 @@ attachHeader name value x =
 -- Request — Optional parameters — Cookies
 
 -- $cookies
+--
+-- Support for cookies is quite minimalistic at the moment, its' possible to
+-- specify which cookies to send using 'cookieJar' and inspect 'L.Response'
+-- to extract 'L.CookieJar' from it.
+
+-- | Use the given 'L.CookieJar'. A 'L.CookieJar' can be obtained from a
+-- 'L.Response' record.
+
+cookieJar :: L.CookieJar -> Option scheme
+cookieJar jar = withRequest $ \x ->
+  x { L.cookieJar = Just jar }
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Authentication
