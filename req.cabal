@@ -65,7 +65,6 @@ library
                     , data-default-class
                     , http-client      >= 0.5     && < 0.6
                     , http-client-tls  >= 0.3.2   && < 0.4
-                    , http-conduit     >= 2.2     && < 3.0
                     , http-types       >= 0.8     && < 10.0
                     , mtl              >= 2.0     && < 3.0
                     , text             >= 0.2     && < 1.3

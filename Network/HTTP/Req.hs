@@ -15,33 +15,34 @@
 -- What does the “easy-to-use” phrase mean? It means that the library is
 -- designed to be beginner-friendly, so it's simple to add it to your monad
 -- stack, intuitive to work with, well-documented, and does not get in your
--- way. On this path certain compromises were made. For example one cannot
--- currently modify 'L.ManagerSettings' of default manager because the
--- library always use the same implicit global manager for simplicity and
--- maximal connection sharing. There is a way to use your own manager with
--- different settings, but it requires a bit more typing. Doing HTTP
--- requests is a common task and Haskell library for this should be very
--- approachable and clear to beginners.
+-- way. Doing HTTP requests is a common task and Haskell library for this
+-- should be very approachable and clear to beginners. On this path certain
+-- compromises were made. For example one cannot currently modify
+-- 'L.ManagerSettings' of default manager because the library always use the
+-- same implicit global manager for simplicity and maximal connection
+-- sharing. There is a way to use your own manager with different settings,
+-- but it requires a bit more typing.
 --
 -- “Type-safe” means that the library is protective and eliminates certain
 -- class of errors compared to alternative libraries like @wreq@ or vanilla
--- @http-client@. For example we have correct-by-construction 'Url's, it's
+-- @http-client@. For example, we have correct-by-construction 'Url's, it's
 -- guaranteed that user does not send request body when using methods like
--- 'GET' or 'DELETE', amount of implicit assumptions is minimized by making
+-- 'GET' or 'OPTIONS', amount of implicit assumptions is minimized by making
 -- user specify his\/her intentions in explicit form (for example it's not
--- possible to avoid specifying body or method of a request). The library
--- carefully hides underlying types from lower-level @http-client@ package
--- because it's not type safe enough (for example 'L.Request' is an instance
--- of 'Data.String.IsString' and if it's malformed, it will blow up at
--- run-time).
+-- possible to avoid specifying body or method of a request). Authentication
+-- methods that assume TLS will force user to use TLS on type level. The
+-- library carefully hides underlying types from lower-level @http-client@
+-- package because it's not type safe enough (for example 'L.Request' is an
+-- instance of 'Data.String.IsString' and if it's malformed, it will blow up
+-- at run-time).
 --
 -- “Expandable” refers to the ability of the library to be expanded without
 -- ugly hacking. For example it's possible to define your own HTTP methods,
 -- new ways to construct body of request, new authorization options, new
--- ways to actually perform request and how to represent\/parse its
--- response. As user extends the library to satisfy his\/her special needs,
--- the new solutions work just like built-ins. That said, all common cases
--- are covered by the library out-of-the-box.
+-- ways to actually perform request and how to represent\/parse response. As
+-- user extends the library to satisfy his\/her special needs, the new
+-- solutions work just like built-ins. That said, all common cases are
+-- covered by the library out-of-the-box.
 --
 -- “High-level” means that there are less details to worry about. The
 -- library is a result of my experiences as a Haskell consultant, working
@@ -51,7 +52,7 @@
 -- concerned with purity: just define 'handleHttpException' accordingly when
 -- making your monad instance of 'MonadHttp' and it will play seamlessly.
 -- Finally, the library cuts boilerplate considerably and helps write
--- concise, easy to read code, thanks to its minimal and uniform API.
+-- concise, easy to read and maintain code.
 --
 -- The documentation below is structured in such a way that most important
 -- information goes first: you learn how to do HTTP requests, then how to
@@ -68,12 +69,15 @@
 --       client used everywhere in Haskell.
 --     * <https://hackage.haskell.org/package/http-client-tls> — TLS (HTTPS)
 --       support for @http-client@.
---     * <https://hackage.haskell.org/package/http-conduit> — conduit
---       interface to @http-client@.
 --
 -- You won't need low-level interface of @http-client@ most of the time, but
 -- when you do, it's better import it qualified because it has naming
 -- conflicts with @req@.
+--
+-- Finally, it's important to note that since we leverage other well-known
+-- libraries that the whole Haskell ecosystem uses, there is no risk in
+-- using @req@, as the machinery for performing requests is the same as with
+-- @http-conduit@ and @wreq@, it's just the API is different.
 
 {-# LANGUAGE DataKinds                          #-}
 {-# LANGUAGE DeriveDataTypeable                 #-}
@@ -96,7 +100,7 @@ module Network.HTTP.Req
   , HttpConfig (..)
     -- * Request
     -- ** Methods
-    -- $request-methods
+    -- $methods
   , GET     (..)
   , POST    (..)
   , HEAD    (..)
@@ -108,6 +112,7 @@ module Network.HTTP.Req
   , PATCH   (..)
   , HttpMethod (..)
     -- ** URL
+    -- $url
   , Url
   , http
   , https
@@ -117,17 +122,19 @@ module Network.HTTP.Req
     -- ** Body
   , HttpBody (..) -- TODO more stuff here
     -- ** Optional parameters
-    -- $request-optional-parameters
+    -- $optional-parameters
   , Option
     -- *** Query parameters
+    -- $query-parameters
   , (=:)
   , queryFlag
   , QueryParam (..)
     -- *** Headers
   , header
     -- *** Cookies
+    -- $cookies
     -- *** Authentication
-    -- $request-optional-parameters-authentication
+    -- $authentication
   , basicAuth
   , oAuth1
   , oAuth2Bearer
@@ -139,8 +146,10 @@ module Network.HTTP.Req
   , responseTimeout
   , httpVersion
     -- * Response
+    -- $response
   , HttpResponse (..)
     -- * Other
+    -- $other
   , CanHaveBody (..)
   , Scheme (..) )
 where
@@ -275,14 +284,14 @@ class MonadIO m => MonadHttp m where
 -- making HTTP requests.
 
 data HttpConfig = HttpConfig
-  { httpConfigProxy         :: !(Maybe L.Proxy)
+  { httpConfigProxy         :: Maybe L.Proxy
     -- ^ Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
     -- environment variables are respected, this setting overwrites them.
     -- Default value: 'Nothing'.
-  , httpConfigRedirectCount :: !Word
+  , httpConfigRedirectCount :: Word
     -- ^ How many redirects to follow when getting a resource. Default
     -- value: 10.
-  , httpConfigAltManager    :: !(Maybe L.Manager)
+  , httpConfigAltManager    :: Maybe L.Manager
     -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
     -- that default implicit manager will be used (that's what you want in
     -- 99% of cases).
@@ -305,7 +314,7 @@ instance Default HttpConfig where
         let Y.Status statusCode _ = L.responseStatus response in
           unless (200 <= statusCode && statusCode < 300) $ do
             chunk <- BL.toStrict <$> L.brReadSome (L.responseBody response) 1024
-            LI.throwHttp (L.StatusCodeException (() <$ response) chunk) }
+            LI.throwHttp (L.StatusCodeException (void response) chunk) }
 
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->
@@ -317,9 +326,9 @@ instance RequestComponent HttpConfig where
 ----------------------------------------------------------------------------
 -- Request — Methods
 
--- $request-methods
+-- $methods
 --
--- The package provides all methods as defined by RFC 2616, and 'PATCH'
+-- The package supports all methods as defined by RFC 2616, and 'PATCH'
 -- which is defined by RFC 5789 — that should be enough to talk to RESTful
 -- APIs. In some cases however, you may want to add more methods (e.g. you
 -- work with WebDAV <https://en.wikipedia.org/wiki/WebDAV>); no need to
@@ -358,7 +367,10 @@ instance HttpMethod PUT where
   type AllowsBody PUT = 'CanHaveBody
   httpMethodName Proxy = Y.methodPut
 
--- | 'DELETE' method.
+-- | 'DELETE' method. This data type does not allow having request body with
+-- 'DELETE' requests, as it should be, however some APIs may expect 'DELETE'
+-- requests to have bodies, in that case define your own variation of
+-- 'DELETE' method and allow it having a body.
 
 data DELETE = DELETE
 
@@ -427,9 +439,14 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 ----------------------------------------------------------------------------
 -- Request — URL
 
+-- $url
+--
+-- We use 'Url's which are correct by construction, see 'Url'. To build a
+-- 'Url' from 'ByteString', use 'parseUrlHttp' or 'parseUrlHttps'.
+
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
 -- specifying the scheme and host at the same time. Then use the @('/:')@
--- constructor to grow path one piece at a time. Every single piece of path
+-- operator to grow path one piece at a time. Every single piece of path
 -- will be url(percent)-encoded, so @('/:')@ is the only way to have forward
 -- slashes between path segments. This approach makes working with dynamic
 -- path segments easy and safe. See examples below how to represent various
@@ -540,7 +557,7 @@ instance HttpBody b => RequestComponent (Womb "body" b) where
 ----------------------------------------------------------------------------
 -- Request — Optional parameters
 
--- $request-optional-parameters
+-- $optional-parameters
 --
 -- Optional parameters to a request include things like query parameters,
 -- headers, port number, etc. All optional parameters have the type
@@ -596,6 +613,10 @@ instance RequestComponent (Option scheme) where
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Query Parameters
+
+-- $query-parameters
+--
+-- Something.
 
 -- | This operator builds a query parameter that will be included in URL of
 -- your request after question sign @?@. This is the same syntax you use
@@ -659,12 +680,12 @@ attachHeader name value x =
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Cookies
 
--- TODO No idea right now.
+-- $cookies
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Authentication
 
--- $request-optional-parameters-authentication
+-- $authentication
 --
 -- TODO Something. You should always prefer authentication 'Option's to
 -- manual construction of headers, etc., because it's a better style and
@@ -782,6 +803,10 @@ httpVersion major minor = withRequest $ \x ->
 ----------------------------------------------------------------------------
 -- Response
 
+-- $response
+--
+-- Something.
+
 -- Here we need to provide various options how to consume responses.
 
 class HttpResponse response where
@@ -791,6 +816,10 @@ class HttpResponse response where
 
 ----------------------------------------------------------------------------
 -- Other
+
+-- $other
+--
+-- Just some auxiliary definitions.
 
 -- | The main class for things that are “parts” of 'L.Request' in the sense
 -- that if we have a 'L.Request', then we know how to apply an instance of
