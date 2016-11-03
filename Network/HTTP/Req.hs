@@ -130,12 +130,12 @@ module Network.HTTP.Req
     -- ** Body
     -- $body
   , NoReqBody (..)
+  , ReqBodyJSON (..)
+  , ReqBodyFile (..)
   , ReqBodyBs (..)
   , ReqBodyLbs (..)
   , ReqBodyUrlEnc (..)
   , FormUrlEncodedParam
-  , ReqBodyMultipart (..)
-  , ReqBodyJSON (..)
   , HttpBody (..)
   , ProvidesBody
     -- ** Optional parameters
@@ -588,6 +588,31 @@ data NoReqBody = NoReqBody
 instance HttpBody NoReqBody where
   getRequestBody NoReqBody = L.RequestBodyBS B.empty
 
+-- | This body option allows to use a JSON object as request body — probably
+-- the most popular format right now. Just wrap a data type that is an
+-- instance of 'ToJSON' type class and you are done: it will be converted to
+-- JSON and inserted as request body.
+--
+-- This body option sets the @Content-Type@ header to @\"application/json;
+-- charset=utf-8\"@ value.
+
+newtype ReqBodyJSON a = ReqBodyJSON a
+
+instance ToJSON a => HttpBody (ReqBodyJSON a) where
+  getRequestBody (ReqBodyJSON a) = L.RequestBodyLBS (A.encode a)
+  getRequestContentType Proxy = pure "application/json; charset=utf-8"
+
+-- | This body option streams request body from a file. It is expected that
+-- the file size does not change during the streaming.
+--
+-- Using of this body option does not set the @Content-Type@ header.
+
+newtype ReqBodyFile = ReqBodyFile FilePath
+
+instance HttpBody ReqBodyFile where
+  getRequestBody (ReqBodyFile path) =
+    LI.RequestBodyIO (L.streamFile path)
+
 -- | HTTP request body represented by a strict 'ByteString'.
 --
 -- Using of this body option does not set the @Content-Type@ header.
@@ -621,7 +646,7 @@ instance HttpBody ReqBodyLbs where
 -- >     queryFlag "baz"
 --
 -- This body option sets the @Content-Type@ header to
--- @application/x-www-from-urlencoded@ value.
+-- @\"application/x-www-from-urlencoded\"@ value.
 
 newtype ReqBodyUrlEnc = ReqBodyUrlEnc FormUrlEncodedParam
 
@@ -640,20 +665,27 @@ newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
 instance QueryParam FormUrlEncodedParam where
   queryParam name mvalue = FormUrlEncodedParam [(name, mvalue)]
 
--- |
-
-newtype ReqBodyMultipart = ReqBodyMultipart ByteString
-
-newtype ReqBodyJSON a = ReqBodyJSON a
-
-instance ToJSON a => HttpBody (ReqBodyJSON a) where
-  getRequestBody (ReqBodyJSON a) = L.RequestBodyLBS (A.encode a)
-  getRequestContentType Proxy = pure "application/json; charset=utf-8"
+-- | A type class for things that can be interpreted as HTTP
+-- 'L.RequestBody'.
 
 class HttpBody body where
+
+  {-# MINIMAL getRequestBody #-}
+
+  -- | How to get actual 'L.RequestBody'.
+
   getRequestBody :: body -> L.RequestBody
+
+  -- | This method allows to optionally specify value of @Content-Type@
+  -- header that should be used when this body option is used. By default
+  -- this returns 'Nothing' and so @Content-Type@ is not set.
+
   getRequestContentType :: Proxy body -> Maybe ByteString
   getRequestContentType Proxy = Nothing
+
+-- | The type function recognizes 'NoReqBody' as having 'NoBody', while any
+-- other body option 'CanHaveBody'. This forces user to use 'NoReqBody' with
+-- 'GET' method and other methods that do not assume any body.
 
 type family ProvidesBody body :: CanHaveBody where
   ProvidesBody NoReqBody = 'NoBody
