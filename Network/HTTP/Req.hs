@@ -7,10 +7,19 @@
 -- Stability   :  experimental
 -- Portability :  portable
 --
--- This is an easy-to-use, type-safe, expandable, high-level HTTP library
--- that just works without any fooling around.
+-- The documentation below is structured in such a way that most important
+-- information goes first: you learn how to do HTTP requests, then how to
+-- embed them in any monad you have, then it goes on giving you details
+-- about less-common things you may want to know about. The documentation is
+-- written with sufficient coverage of details and examples, it's designed
+-- to be a complete tutorial on its own.
 --
 -- /(A modest intro goes here, click on 'req' to start making requests.)/
+--
+-- === About the library
+--
+-- This is an easy-to-use, type-safe, expandable, high-level HTTP library
+-- that just works without any fooling around.
 --
 -- What does the “easy-to-use” phrase mean? It means that the library is
 -- designed to be beginner-friendly, so it's simple to add it to your monad
@@ -25,16 +34,16 @@
 --
 -- “Type-safe” means that the library is protective and eliminates certain
 -- class of errors compared to alternative libraries like @wreq@ or vanilla
--- @http-client@. For example, we have correct-by-construction 'Url's, it's
--- guaranteed that user does not send request body when using methods like
--- 'GET' or 'OPTIONS', amount of implicit assumptions is minimized by making
--- user specify his\/her intentions in explicit form (for example it's not
--- possible to avoid specifying body or method of a request). Authentication
--- methods that assume TLS will force user to use TLS on type level. The
--- library carefully hides underlying types from lower-level @http-client@
--- package because it's not type safe enough (for example 'L.Request' is an
--- instance of 'Data.String.IsString' and if it's malformed, it will blow up
--- at run-time).
+-- @http-client@ and friends. For example, we have correct-by-construction
+-- 'Url's, it's guaranteed that user does not send request body when using
+-- methods like 'GET' or 'OPTIONS', amount of implicit assumptions is
+-- minimized by making user specify his\/her intentions in explicit form
+-- (for example it's not possible to avoid specifying body or method of a
+-- request). Authentication methods that assume TLS will force user to use
+-- TLS on type level. The library carefully hides underlying types from
+-- lower-level @http-client@ package because it's not type safe enough (for
+-- example 'L.Request' is an instance of 'Data.String.IsString' and if it's
+-- malformed, it will blow up at run-time).
 --
 -- “Expandable” refers to the ability of the library to be expanded without
 -- ugly hacking. For example it's possible to define your own HTTP methods,
@@ -48,41 +57,40 @@
 -- library is a result of my experiences as a Haskell consultant, working
 -- for several clients who have very different projects and so the library
 -- adapts easily to any particular style of writing Haskell applications.
--- For example some people prefer throwing exceptions, while others are
+-- For example, some people prefer throwing exceptions, while others are
 -- concerned with purity: just define 'handleHttpException' accordingly when
 -- making your monad instance of 'MonadHttp' and it will play seamlessly.
 -- Finally, the library cuts boilerplate considerably and helps write
 -- concise, easy to read and maintain code.
 --
--- The documentation below is structured in such a way that most important
--- information goes first: you learn how to do HTTP requests, then how to
--- embed them in any monad you have, then it goes on giving you details
--- about less-common things you may want to know about. The documentation is
--- written with sufficient coverage of details and examples, it's designed
--- to be a complete tutorial on its own.
+-- === Using with other libraries
 --
--- The library uses the following well-known and mature packages under the
--- hood to guarantee you best experience without bugs or other funny
--- business:
+--     * You won't need low-level interface of @http-client@ most of the
+--       time, but when you do, it's better import it qualified because it
+--       has naming conflicts with @req@.
+--     * For streaming of large request bodies see companion package
+--       @req-conduit@: <https://hackage.haskell.org/package/req-conduit>.
+--
+-- === Lightweight, no risk solution
+--
+-- The library uses the following mature packages under the hood to
+-- guarantee you best experience without bugs or other funny business:
 --
 --     * <https://hackage.haskell.org/package/http-client> — low level HTTP
 --       client used everywhere in Haskell.
 --     * <https://hackage.haskell.org/package/http-client-tls> — TLS (HTTPS)
 --       support for @http-client@.
 --
--- You won't need low-level interface of @http-client@ most of the time, but
--- when you do, it's better import it qualified because it has naming
--- conflicts with @req@.
---
--- Finally, it's important to note that since we leverage other well-known
--- libraries that the whole Haskell ecosystem uses, there is no risk in
--- using @req@, as the machinery for performing requests is the same as with
--- @http-conduit@ and @wreq@, it's just the API is different.
+-- It's important to note that since we leverage well-known libraries that
+-- the whole Haskell ecosystem uses, there is no risk in using @req@, as the
+-- machinery for performing requests is the same as with @http-conduit@ and
+-- @wreq@, it's just the API is different.
 
 {-# LANGUAGE DataKinds                          #-}
 {-# LANGUAGE DeriveDataTypeable                 #-}
 {-# LANGUAGE DeriveGeneric                      #-}
 {-# LANGUAGE FlexibleInstances                  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving         #-}
 {-# LANGUAGE KindSignatures                     #-}
 {-# LANGUAGE OverloadedStrings                  #-}
 {-# LANGUAGE RecordWildCards                    #-}
@@ -99,8 +107,8 @@ module Network.HTTP.Req
   , MonadHttp  (..)
   , HttpConfig (..)
     -- * Request
-    -- ** Methods
-    -- $methods
+    -- ** Method
+    -- $method
   , GET     (..)
   , POST    (..)
   , HEAD    (..)
@@ -325,9 +333,9 @@ instance RequestComponent HttpConfig where
       , LI.checkResponse          = httpConfigCheckResponse }
 
 ----------------------------------------------------------------------------
--- Request — Methods
+-- Request — Method
 
--- $methods
+-- $method
 --
 -- The package supports all methods as defined by RFC 2616, and 'PATCH'
 -- which is defined by RFC 5789 — that should be enough to talk to RESTful
@@ -431,7 +439,7 @@ class HttpMethod a where
 
   -- | Return name of the method as a 'ByteString'.
 
-  httpMethodName :: Proxy a -> Y.Method
+  httpMethodName :: Proxy a -> ByteString
 
 instance HttpMethod method => RequestComponent (Womb "method" method) where
   getRequestMod _ = Endo $ \x ->
@@ -494,10 +502,10 @@ Url secure path /: segment = Url secure (NE.cons segment path)
 
 -- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
 -- (possibly with some 'Option's) from a 'ByteString'. This is useful when
--- you are given an URL to query dynamically and don't know it beforehand.
--- The function parses 'ByteString' because it's a correct type to hold an
--- URL, as 'Url' cannot contain characters outside of ASCII range, thus we
--- can consider every character a 'Data.Word.Word8' value.
+-- you are given a URL to query dynamically and don't know it beforehand.
+-- The function parses 'ByteString' because it's the correct type to
+-- represent a URL, as 'Url' cannot contain characters outside of ASCII
+-- range, thus we can consider every character a 'Data.Word.Word8' value.
 --
 -- This function only parses 'Url' (scheme, host, path) and optional query
 -- parameters that are returned as 'Option'. It does not parse method name
