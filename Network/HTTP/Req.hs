@@ -128,7 +128,16 @@ module Network.HTTP.Req
   , parseUrlHttp
   , parseUrlHttps
     -- ** Body
-  , HttpBody (..) -- TODO more stuff here
+    -- $body
+  , NoReqBody (..)
+  , ReqBodyBs (..)
+  , ReqBodyLbs (..)
+  , ReqBodyUrlEnc (..)
+  , FormUrlEncodedParam
+  , ReqBodyMultipart (..)
+  , ReqBodyJSON (..)
+  , HttpBody (..)
+  , ProvidesBody
     -- ** Optional parameters
     -- $optional-parameters
   , Option
@@ -168,7 +177,7 @@ import Control.Arrow (first, second)
 import Control.Exception (try)
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..), Value)
 import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Default.Class
@@ -183,6 +192,8 @@ import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Blaze.ByteString.Builder     as BB
+import qualified Data.Aeson                   as A
 import qualified Data.Binary.Builder          as R
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
@@ -558,17 +569,105 @@ instance RequestComponent (Url scheme) where
 ----------------------------------------------------------------------------
 -- Request — Body
 
-class HttpBody b where
-  type ProvidesBody b :: CanHaveBody
-  getReqestBody :: b -> ByteString -- FIXME should use a conduit here
+-- $body
+--
+-- A number of options for request bodies are available, they all are listed
+-- in this section. The @Content-Type@ header is set for you automatically
+-- according to body option you use (it's always specified in documentation
+-- for given body option). To add your own way to represent request body,
+-- see 'HttpBody'.
 
-data FormUrlEncodedParam = FormUrlEncodedParam Text (Maybe Text)
+-- | This data type represents empty body of an HTTP request. This is the
+-- data type to be used with 'HttpMethod's that cannot have a body, as it's
+-- the only type for which 'ProvidesBody' returns 'NoBody'.
+--
+-- Using of this body option does not set the @Content-Type@ header.
+
+data NoReqBody = NoReqBody
+
+instance HttpBody NoReqBody where
+  getRequestBody NoReqBody = L.RequestBodyBS B.empty
+
+-- | HTTP request body represented by a strict 'ByteString'.
+--
+-- Using of this body option does not set the @Content-Type@ header.
+
+newtype ReqBodyBs = ReqBodyBs ByteString
+
+instance HttpBody ReqBodyBs where
+  getRequestBody (ReqBodyBs bs) = L.RequestBodyBS bs
+
+-- | HTTP request body represented by a lazy 'BL.ByteString'.
+--
+-- Using of this body option does not set the @Content-Type@ header.
+
+newtype ReqBodyLbs = ReqBodyLbs BL.ByteString
+
+instance HttpBody ReqBodyLbs where
+  getRequestBody (ReqBodyLbs bs) = L.RequestBodyLBS bs
+
+-- | Form URL-encoded body. This can hold a collection of parameters which
+-- are encoded similarly to query parameters at the end of query string,
+-- with the only difference that they are stored in request body. The
+-- similarity is reflected in API as well, as you can use the same
+-- combinators you would use to add query parameters: @('=:')@ and
+-- 'queryFlag'.
+--
+-- Here is an example of use:
+--
+-- > req POST (https "httpbin.org" /: "post") (ReqBodyUrlEnc params) mempty
+-- >   where params =
+-- >     "foo" =: "bar" <>
+-- >     queryFlag "baz"
+--
+-- This body option sets the @Content-Type@ header to
+-- @application/x-www-from-urlencoded@ value.
+
+newtype ReqBodyUrlEnc = ReqBodyUrlEnc FormUrlEncodedParam
+
+instance HttpBody ReqBodyUrlEnc where
+  getRequestBody (ReqBodyUrlEnc (FormUrlEncodedParam params)) =
+    (L.RequestBodyLBS . BB.toLazyByteString) (Y.renderQueryText False params)
+  getRequestContentType Proxy = pure "application/x-www-form-urlencoded"
+
+-- | An opaque monoidal value that allows to collect URL-encoded parameters
+-- to be wrapped in 'ReqBodyUrlEnc' (documentation for this type has an
+-- example of use).
+
+newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
+  deriving (Semigroup, Monoid)
 
 instance QueryParam FormUrlEncodedParam where
-  queryParam = FormUrlEncodedParam
+  queryParam name mvalue = FormUrlEncodedParam [(name, mvalue)]
 
-instance HttpBody b => RequestComponent (Womb "body" b) where
-  getRequestMod = undefined -- FIXME
+-- |
+
+newtype ReqBodyMultipart = ReqBodyMultipart ByteString
+
+newtype ReqBodyJSON a = ReqBodyJSON a
+
+instance ToJSON a => HttpBody (ReqBodyJSON a) where
+  getRequestBody (ReqBodyJSON a) = L.RequestBodyLBS (A.encode a)
+  getRequestContentType Proxy = pure "application/json; charset=utf-8"
+
+class HttpBody body where
+  getRequestBody :: body -> L.RequestBody
+  getRequestContentType :: Proxy body -> Maybe ByteString
+  getRequestContentType Proxy = Nothing
+
+type family ProvidesBody body :: CanHaveBody where
+  ProvidesBody NoReqBody = 'NoBody
+  ProvidesBody body      = 'CanHaveBody
+
+instance HttpBody body => RequestComponent (Womb "body" body) where
+  getRequestMod (Womb body) = Endo $ \x ->
+    x { L.requestBody = getRequestBody body
+      , L.requestHeaders =
+        let old = L.requestHeaders x in
+          case getRequestContentType (Proxy :: Proxy body) of
+            Nothing -> old
+            Just contentType ->
+              (Y.hContentType, contentType) : old }
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters
