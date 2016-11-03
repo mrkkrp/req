@@ -172,7 +172,9 @@ import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Default.Class
+import Data.Function (on)
 import Data.IORef
+import Data.List (nubBy)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Proxy
 import Data.Semigroup hiding (Option, option)
@@ -221,16 +223,21 @@ req
 req method url body options = do
   config  <- getHttpConfig
   manager <- liftIO (readIORef globalManager)
-  let request = flip appEndo L.defaultRequest $
-        -- NOTE Order of 'mappend's matters, here method is overwritten
-        -- first and 'options' take effect last. In particular, this means
-        -- that 'options' can overwrite things set by other request
-        -- components, which is useful for setting port number,
-        -- "Content-Type" header, etc.
-        getRequestMod options                               <>
-        getRequestMod config                                <>
-        getRequestMod (Womb body   :: Womb "body"   body)   <>
-        getRequestMod url                                   <>
+  let -- NOTE First appearance of any given header wins. This allows to
+      -- “overwrite” headers when we construct a request by cons-ing.
+      nubHeaders = Endo $ \x ->
+        x { L.requestHeaders = nubBy ((==) `on` fst) (L.requestHeaders x) }
+      request = flip appEndo L.defaultRequest $
+      -- NOTE Order of 'mappend's matters, here method is overwritten first
+      -- and 'options' take effect last. In particular, this means that
+      -- 'options' can overwrite things set by other request components,
+      -- which is useful for setting port number, "Content-Type" header,
+      -- etc.
+        nubHeaders                                        <>
+        getRequestMod options                             <>
+        getRequestMod config                              <>
+        getRequestMod (Womb body   :: Womb "body"   body) <>
+        getRequestMod url                                 <>
         getRequestMod (Womb method :: Womb "method" method)
   liftIO (try $ getHttpResponse manager request)
     >>= either handleHttpException return
