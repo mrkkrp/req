@@ -25,8 +25,8 @@
 -- designed to be beginner-friendly, so it's simple to add it to your monad
 -- stack, intuitive to work with, well-documented, and does not get in your
 -- way. Doing HTTP requests is a common task and Haskell library for this
--- should be very approachable and clear to beginners. On this path certain
--- compromises were made. For example one cannot currently modify
+-- should be very approachable and clear to beginners, thus certain
+-- compromises were made. For example, one cannot currently modify
 -- 'L.ManagerSettings' of default manager because the library always use the
 -- same implicit global manager for simplicity and maximal connection
 -- sharing. There is a way to use your own manager with different settings,
@@ -38,15 +38,15 @@
 -- 'Url's, it's guaranteed that user does not send request body when using
 -- methods like 'GET' or 'OPTIONS', amount of implicit assumptions is
 -- minimized by making user specify his\/her intentions in explicit form
--- (for example it's not possible to avoid specifying body or method of a
--- request). Authentication methods that assume TLS will force user to use
--- TLS on type level. The library carefully hides underlying types from
--- lower-level @http-client@ package because it's not type safe enough (for
--- example 'L.Request' is an instance of 'Data.String.IsString' and if it's
+-- (for example, it's not possible to avoid specifying body or method of a
+-- request). Authentication methods that assume TLS force user to use TLS on
+-- type level. The library carefully hides underlying types from lower-level
+-- @http-client@ package because it's not type safe enough (for example
+-- 'L.Request' is an instance of 'Data.String.IsString' and if it's
 -- malformed, it will blow up at run-time).
 --
 -- “Expandable” refers to the ability of the library to be expanded without
--- ugly hacking. For example it's possible to define your own HTTP methods,
+-- ugly hacking. For example, it's possible to define your own HTTP methods,
 -- new ways to construct body of request, new authorization options, new
 -- ways to actually perform request and how to represent\/parse response. As
 -- user extends the library to satisfy his\/her special needs, the new
@@ -171,7 +171,6 @@ module Network.HTTP.Req
     -- $response
   , HttpResponse (..)
     -- * Other
-    -- $other
   , CanHaveBody (..)
   , Scheme (..) )
 where
@@ -287,7 +286,7 @@ globalManager = unsafePerformIO $ do
 -- $embedding-requests
 --
 -- To use 'req' in your monad, all you need to do is to make the monad an
--- instance of the 'MonadHttp' type class, which see.
+-- instance of the 'MonadHttp' type class.
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
@@ -331,13 +330,14 @@ data HttpConfig = HttpConfig
     -- that default implicit manager will be used (that's what you want in
     -- 99% of cases).
   , httpConfigCheckResponse :: L.Request -> L.Response L.BodyReader -> IO ()
-    -- ^ Check the response immediately after receiving the status and
-    -- headers. This is used for throwing exceptions on non-success status
-    -- codes by default. Throwing is better then just returning a request
-    -- with non-2xx status code because in that case something is wrong and
-    -- we need a way to short-cut execution. The thrown exception is caught
-    -- by the library though and is available in 'handleHttpException',
-    -- which see.
+    -- ^ Function to check the response immediately after receiving the
+    -- status and headers. This is used for throwing exceptions on
+    -- non-success status codes by default (set to @\\_ _ -> return ()@ if
+    -- this behavior is not desirable). Throwing is better then just
+    -- returning a request with non-2xx status code because in that case
+    -- something is wrong and we need a way to short-cut execution. The
+    -- thrown exception is caught by the library though and is available in
+    -- 'handleHttpException'.
   } deriving Typeable
 
 instance Default HttpConfig where
@@ -365,7 +365,7 @@ instance RequestComponent HttpConfig where
 --
 -- The package supports all methods as defined by RFC 2616, and 'PATCH'
 -- which is defined by RFC 5789 — that should be enough to talk to RESTful
--- APIs. In some cases however, you may want to add more methods (e.g. you
+-- APIs. In some cases, however, you may want to add more methods (e.g. you
 -- work with WebDAV <https://en.wikipedia.org/wiki/WebDAV>); no need to
 -- compromise on type safety and hack, it only takes a couple of seconds to
 -- define a new method that will works seamlessly, see 'HttpMethod'.
@@ -405,7 +405,7 @@ instance HttpMethod PUT where
 -- | 'DELETE' method. This data type does not allow having request body with
 -- 'DELETE' requests, as it should be, however some APIs may expect 'DELETE'
 -- requests to have bodies, in that case define your own variation of
--- 'DELETE' method and allow it having a body.
+-- 'DELETE' method and allow it to have a body.
 
 data DELETE = DELETE
 
@@ -579,15 +579,14 @@ instance RequestComponent (Url scheme) where
 
 -- $body
 --
--- A number of options for request bodies are available, they all are listed
--- in this section. The @Content-Type@ header is set for you automatically
--- according to body option you use (it's always specified in documentation
--- for given body option). To add your own way to represent request body,
--- see 'HttpBody'.
+-- A number of options for request bodies are available. The @Content-Type@
+-- header is set for you automatically according to body option you use
+-- (it's always specified in documentation for given body option). To add
+-- your own way to represent request body, see 'HttpBody'.
 
 -- | This data type represents empty body of an HTTP request. This is the
--- data type to be used with 'HttpMethod's that cannot have a body, as it's
--- the only type for which 'ProvidesBody' returns 'NoBody'.
+-- data type to use with 'HttpMethod's that cannot have a body, as it's the
+-- only type for which 'ProvidesBody' returns 'NoBody'.
 --
 -- Using of this body option does not set the @Content-Type@ header.
 
@@ -693,7 +692,7 @@ class HttpBody body where
 
 -- | The type function recognizes 'NoReqBody' as having 'NoBody', while any
 -- other body option 'CanHaveBody'. This forces user to use 'NoReqBody' with
--- 'GET' method and other methods that do not assume any body.
+-- 'GET' method and other methods that should not send a body.
 
 type family ProvidesBody body :: CanHaveBody where
   ProvidesBody NoReqBody = 'NoBody
@@ -771,7 +770,9 @@ instance RequestComponent (Option scheme) where
 
 -- $query-parameters
 --
--- Something.
+-- This section describes a polymorphic interface that can be used to
+-- construct query parameters (of type 'Option') and form url encoded bodies
+-- (of type 'FormUrlEncodedParam').
 
 -- | This operator builds a query parameter that will be included in URL of
 -- your request after question sign @?@. This is the same syntax you use
@@ -798,7 +799,7 @@ queryFlag :: QueryParam a => Text -> a
 queryFlag name = queryParam name Nothing
 
 -- | A type class for query-parameter-like things. The reason to have
--- overloaded 'queryParam' is to be able to use as an 'Option' and as a
+-- overloaded 'queryParam' is to be able to use it as an 'Option' and as a
 -- 'FormUrlEncodedParam' when constructing form URL encoded request bodies.
 -- Having the same syntax for these cases seems natural and user-friendly.
 
@@ -853,14 +854,16 @@ cookieJar jar = withRequest $ \x ->
 
 -- $authentication
 --
--- TODO Something. You should always prefer authentication 'Option's to
--- manual construction of headers, etc., because it's a better style and
--- provides additional type safety that prevents leaking of credentials.
---
--- Mention that auth 'Option's overwrite each other unlike other 'Option's,
--- so several auth options are never active at the same time.
+-- This section provides common authentication helpers in form of 'Option's.
+-- You should always prefer the provided authentication 'Option's to manual
+-- construction of headers because it ensures that you only use one
+-- authentication method at a time (they overwrite each other) and provides
+-- additional type safety that prevents leaking of credentials in cases when
+-- authentication relies on TLS for encrypting sensitive data.
 
 -- | OAuth 1 authentication 'Option'.
+--
+-- See also: <https://en.wikipedia.org/wiki/OAuth>
 
 oAuth1
   :: ByteString        -- ^ Consumer token
@@ -889,6 +892,8 @@ basicAuth username password = asFinalizer
 -- The 'Option' is defined as:
 --
 -- > oAuth2Bearer token = header "Authorization" ("Bearer " <> token)
+--
+-- See also: <https://en.wikipedia.org/wiki/OAuth>
 
 oAuth2Bearer
   :: ByteString        -- ^ Token
@@ -903,6 +908,8 @@ oAuth2Bearer token = asFinalizer
 -- The 'Option' is defined as:
 --
 -- > oAuth2Token token = header "Authorization" ("token" <> token)
+--
+-- See also: <https://developer.github.com/v3/oauth#3-use-the-access-token-to-access-the-api>
 
 oAuth2Token
   :: ByteString        -- ^ Token
@@ -911,6 +918,8 @@ oAuth2Token token = asFinalizer
   (attachHeader "Authorization" ("token" <> token))
 
 -- | The 'Option' adds AWS v4 request signature.
+--
+-- See also: <https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html>
 
 awsAuth
   :: ByteString        -- ^ AWS access key
@@ -980,10 +989,6 @@ class HttpResponse response where
 
 ----------------------------------------------------------------------------
 -- Other
-
--- $other
---
--- Just some auxiliary definitions.
 
 -- | The main class for things that are “parts” of 'L.Request' in the sense
 -- that if we have a 'L.Request', then we know how to apply an instance of
