@@ -195,6 +195,7 @@ import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
+import Web.HttpApiData (ToHttpApiData (..))
 import qualified Blaze.ByteString.Builder     as BB
 import qualified Data.Aeson                   as A
 import qualified Data.Binary.Builder          as R
@@ -501,6 +502,9 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- > https "httpbin.org" /: "foo" /: "bar/baz"
 -- > -- https://httpbin.org/foo/bar%2Fbaz
 --
+-- > https "httpbin.org" /: "bytes" /: (10 :: Int)
+-- > -- https://httpbin.org/bytes/10
+--
 -- > https "юникод.рф"
 -- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 
@@ -520,11 +524,12 @@ http = Url Http . pure
 https :: Text -> Url 'Https
 https = Url Https . pure
 
--- | Grow given 'Url' appending a single path segment to it.
+-- | Grow given 'Url' appending a single path segment to it. Note that the
+-- path segment can be of any type that is an instance of 'ToHttpApiData'.
 
 infixl 5 /:
-(/:) :: Url scheme -> Text -> Url scheme
-Url secure path /: segment = Url secure (NE.cons segment path)
+(/:) :: ToHttpApiData a => Url scheme -> a -> Url scheme
+Url secure path /: segment = Url secure (NE.cons (toUrlPiece segment) path)
 
 -- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
 -- (possibly with some 'Option's) from a 'ByteString'. This is useful when
@@ -670,7 +675,8 @@ newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
   deriving (Semigroup, Monoid)
 
 instance QueryParam FormUrlEncodedParam where
-  queryParam name mvalue = FormUrlEncodedParam [(name, mvalue)]
+  queryParam name mvalue =
+    FormUrlEncodedParam [(name, toQueryParam <$> mvalue)]
 
 -- | A type class for things that can be interpreted as HTTP
 -- 'L.RequestBody'.
@@ -771,7 +777,7 @@ instance RequestComponent (Option scheme) where
 -- $query-parameters
 --
 -- This section describes a polymorphic interface that can be used to
--- construct query parameters (of type 'Option') and form url encoded bodies
+-- construct query parameters (of type 'Option') and form URL-encoded bodies
 -- (of type 'FormUrlEncodedParam').
 
 -- | This operator builds a query parameter that will be included in URL of
@@ -783,7 +789,7 @@ instance RequestComponent (Option scheme) where
 -- > name =: value = queryParam name (pure value)
 
 infix 7 =:
-(=:) :: QueryParam a => Text -> Text -> a
+(=:) :: (QueryParam param, ToHttpApiData a) => Text -> a -> param
 name =: value = queryParam name (pure value)
 
 -- | Construct a flag, that is, valueless query parameter. For example, in
@@ -795,25 +801,26 @@ name =: value = queryParam name (pure value)
 --
 -- > queryFlag name = queryParam name Nothing
 
-queryFlag :: QueryParam a => Text -> a
-queryFlag name = queryParam name Nothing
+queryFlag :: QueryParam param => Text -> param
+queryFlag name = queryParam name (Nothing :: Maybe ())
 
 -- | A type class for query-parameter-like things. The reason to have
 -- overloaded 'queryParam' is to be able to use it as an 'Option' and as a
 -- 'FormUrlEncodedParam' when constructing form URL encoded request bodies.
 -- Having the same syntax for these cases seems natural and user-friendly.
 
-class QueryParam a where
+class QueryParam param where
 
   -- | Create a query parameter with given name and value. If value is
   -- 'Nothing', it won't be included at all (i.e. you create a flag this
   -- way). It's recommended to use @('=:')@ and 'queryFlag' instead of this
   -- method, because they are easier to read.
 
-  queryParam :: Text -> Maybe Text -> a
+  queryParam :: ToHttpApiData a => Text -> Maybe a -> param
 
 instance QueryParam (Option scheme) where
-  queryParam name mvalue = withQueryParams ((:) (name, mvalue))
+  queryParam name mvalue =
+    withQueryParams ((:) (name, toQueryParam <$> mvalue))
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Headers
