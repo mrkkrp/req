@@ -86,17 +86,21 @@
 -- machinery for performing requests is the same as with @http-conduit@ and
 -- @wreq@, it's just the API is different.
 
-{-# LANGUAGE DataKinds                          #-}
-{-# LANGUAGE DeriveDataTypeable                 #-}
-{-# LANGUAGE DeriveGeneric                      #-}
-{-# LANGUAGE FlexibleInstances                  #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving         #-}
-{-# LANGUAGE KindSignatures                     #-}
-{-# LANGUAGE OverloadedStrings                  #-}
-{-# LANGUAGE RecordWildCards                    #-}
-{-# LANGUAGE ScopedTypeVariables                #-}
-{-# LANGUAGE TypeFamilies                       #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+
+#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
+#endif
 
 module Network.HTTP.Req
   ( -- * Making a request
@@ -172,12 +176,12 @@ module Network.HTTP.Req
   , Scheme (..) )
 where
 
-import Control.Applicative ((<|>))
+import Control.Applicative
 import Control.Arrow (first, second)
 import Control.Exception (try)
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson (FromJSON (..), ToJSON (..), Value)
+import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Default.Class
@@ -207,6 +211,10 @@ import qualified Network.HTTP.Client.TLS      as L
 import qualified Network.HTTP.Req.AWS         as AWS
 import qualified Network.HTTP.Req.OAuth1      as OAuth1
 import qualified Network.HTTP.Types           as Y
+
+#if !MIN_VERSION_base(4,8,0)
+import Data.Word (Word)
+#endif
 
 ----------------------------------------------------------------------------
 -- Making a request
@@ -965,12 +973,10 @@ httpVersion major minor = withRequest $ \x ->
 --
 -- Something.
 
--- Here we need to provide various options how to consume responses.
+-- | Here we need to provide various options how to consume responses.
 
 class HttpResponse response where
   getHttpResponse :: L.Manager -> L.Request -> IO response
-
--- helpers to
 
 ----------------------------------------------------------------------------
 -- Other
