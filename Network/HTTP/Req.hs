@@ -168,7 +168,15 @@ module Network.HTTP.Req
   , responseTimeout
   , httpVersion
     -- * Response
-    -- $response
+    -- ** Response interpretations
+  , IgnoredResponseBody
+    -- ** Inspecting a response
+  , responseBody
+  , responseStatusCode
+  , responseStatusMessage
+  , responseHeader
+  , responseCookieJar
+    -- ** Defining your own interpretation
   , HttpResponse (..)
     -- * Other
   , CanHaveBody (..)
@@ -983,15 +991,68 @@ httpVersion major minor = withRequest $ \x ->
         Y.HttpVersion (fromIntegral major) (fromIntegral minor) }
 
 ----------------------------------------------------------------------------
--- Response
+-- Response interpretations
 
--- $response
---
--- Something.
+data IgnoredResponseBody = IgnoredResponseBody (L.Response ())
+
+----------------------------------------------------------------------------
+-- Inspecting a response
+
+-- | Get response body.
+
+responseBody
+  :: HttpResponse response
+  => response
+  -> HttpResponseBody response
+responseBody = L.responseBody . toVanillaResponse
+
+-- | Get response status code.
+
+responseStatusCode
+  :: HttpResponse response
+  => response
+  -> Word
+responseStatusCode =
+  fromIntegral . Y.statusCode . L.responseStatus . toVanillaResponse
+
+-- | Get response status message.
+
+responseStatusMessage
+  :: HttpResponse response
+  => response
+  -> ByteString
+responseStatusMessage =
+  Y.statusMessage . L.responseStatus . toVanillaResponse
+
+-- | Look a particular header from a response.
+
+responseHeader
+  :: HttpResponse response
+  => response          -- ^ Response interpretation
+  -> ByteString        -- ^ Header to lookup
+  -> Maybe ByteString  -- ^ Header value if found
+responseHeader r h =
+  (lookup (CI.mk h) . L.responseHeaders . toVanillaResponse) r
+
+-- | Get response 'L.CookieJar'.
+
+responseCookieJar
+  :: HttpResponse response
+  => response
+  -> L.CookieJar
+responseCookieJar = L.responseCookieJar . toVanillaResponse
+
+----------------------------------------------------------------------------
+-- Response — defining your own interpretation
 
 -- | Here we need to provide various options how to consume responses.
 
 class HttpResponse response where
+
+  type HttpResponseBody response :: *
+
+  toVanillaResponse :: response -> L.Response (HttpResponseBody response)
+
   getHttpResponse :: L.Manager -> L.Request -> IO response
 
 ----------------------------------------------------------------------------
