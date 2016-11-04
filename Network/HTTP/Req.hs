@@ -220,10 +220,6 @@ import qualified Network.HTTP.Req.AWS         as AWS
 import qualified Network.HTTP.Req.OAuth1      as OAuth1
 import qualified Network.HTTP.Types           as Y
 
-#if !MIN_VERSION_base(4,8,0)
-import Data.Word (Word)
-#endif
-
 ----------------------------------------------------------------------------
 -- Making a request
 
@@ -331,7 +327,7 @@ data HttpConfig = HttpConfig
     -- ^ Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
     -- environment variables are respected, this setting overwrites them.
     -- Default value: 'Nothing'.
-  , httpConfigRedirectCount :: Word
+  , httpConfigRedirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. Default
     -- value: 10.
   , httpConfigAltManager    :: Maybe L.Manager
@@ -363,7 +359,7 @@ instance Default HttpConfig where
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->
     x { L.proxy                   = httpConfigProxy
-      , L.redirectCount           = fromIntegral httpConfigRedirectCount
+      , L.redirectCount           = httpConfigRedirectCount
       , LI.requestManagerOverride = httpConfigAltManager
       , LI.checkResponse          = httpConfigCheckResponse }
 
@@ -950,9 +946,9 @@ awsAuth accessKey secretKey = asFinalizer
 -- determines default port, @80@ for HTTP and @443@ for HTTPS, this 'Option'
 -- allows to choose arbitrary port overwriting the defaults.
 
-port :: Word -> Option scheme
+port :: Int -> Option scheme
 port n = withRequest $ \x ->
-  x { L.port = fromIntegral n }
+  x { L.port = n }
 
 -- | This 'Option' controls whether gzipped data should be decompressed on
 -- the fly. By default everything except for @application\/x-tar@ is
@@ -975,20 +971,19 @@ decompress f = withRequest $ \x ->
 -- seconds.
 
 responseTimeout
-  :: Word              -- ^ Number of microseconds to wait
+  :: Int               -- ^ Number of microseconds to wait
   -> Option scheme
 responseTimeout n = withRequest $ \x ->
-  x { L.responseTimeout = LI.ResponseTimeoutMicro (fromIntegral n) }
+  x { L.responseTimeout = LI.ResponseTimeoutMicro n }
 
 -- | HTTP version to send to server, default is HTTP 1.1.
 
 httpVersion
-  :: Word              -- ^ Major version number
-  -> Word              -- ^ Minor version number
+  :: Int               -- ^ Major version number
+  -> Int               -- ^ Minor version number
   -> Option scheme
 httpVersion major minor = withRequest $ \x ->
-  x { L.requestVersion =
-        Y.HttpVersion (fromIntegral major) (fromIntegral minor) }
+  x { L.requestVersion = Y.HttpVersion major minor }
 
 ----------------------------------------------------------------------------
 -- Response interpretations
@@ -1011,9 +1006,9 @@ responseBody = L.responseBody . toVanillaResponse
 responseStatusCode
   :: HttpResponse response
   => response
-  -> Word
+  -> Int
 responseStatusCode =
-  fromIntegral . Y.statusCode . L.responseStatus . toVanillaResponse
+  Y.statusCode . L.responseStatus . toVanillaResponse
 
 -- | Get response status message.
 
