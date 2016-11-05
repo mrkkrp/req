@@ -134,7 +134,7 @@ module Network.HTTP.Req
     -- ** Body
     -- $body
   , NoReqBody (..)
-  , ReqBodyJSON (..)
+  , ReqBodyJson (..)
   , ReqBodyFile (..)
   , ReqBodyBs (..)
   , ReqBodyLbs (..)
@@ -637,10 +637,10 @@ instance HttpBody NoReqBody where
 -- This body option sets the @Content-Type@ header to @\"application/json;
 -- charset=utf-8\"@ value.
 
-newtype ReqBodyJSON a = ReqBodyJSON a
+newtype ReqBodyJson a = ReqBodyJson a
 
-instance ToJSON a => HttpBody (ReqBodyJSON a) where
-  getRequestBody (ReqBodyJSON a) = L.RequestBodyLBS (A.encode a)
+instance ToJSON a => HttpBody (ReqBodyJson a) where
+  getRequestBody (ReqBodyJson a) = L.RequestBodyLBS (A.encode a)
   getRequestContentType Proxy = pure "application/json; charset=utf-8"
 
 -- | This body option streams request body from a file. It is expected that
