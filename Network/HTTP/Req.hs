@@ -843,7 +843,10 @@ instance QueryParam (Option scheme) where
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Headers
 
--- | Create an 'Option' that adds a header.
+-- | Create an 'Option' that adds a header. Note that if you 'mappend' two
+-- headers with the same names the leftmost header will win. This means, in
+-- particular, that you cannot create a request with several headers of the
+-- same name.
 
 header
   :: ByteString        -- ^ Header name
