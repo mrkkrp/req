@@ -239,9 +239,125 @@ import qualified Network.HTTP.Types           as Y
 --
 -- To make an HTTP request you need only one function: 'req'.
 
--- | Make an HTTP request.
+-- | Make an HTTP request. The function takes 5 arguments, 4 of which
+-- specify required parameters and the final 'Option' argument is a
+-- collection of optional parameters.
 --
--- TODO Finish docs of this function when the package is more developed.
+-- Let's go through all the arguments first: @req method url body response
+-- options@.
+--
+-- @method@ is an HTTP method such as 'GET' or 'POST'. The documentation has
+-- a dedicated section about HTTP methods below.
+--
+-- @url@ is a URL that describes location of resource you want to interact
+-- with. It's of type 'Url' (if you click the link it will tell everything
+-- about construction of 'Url' things).
+--
+-- @body@ is a body option such as 'NoReqBody' or 'ReqBodyJson'. The
+-- tutorial has a section about HTTP bodies, but usage in very
+-- straightforward and should be clear from the examples below.
+--
+-- @response@ is a type hint how to make and interpret response of HTTP
+-- request, out-of-the-box it can be the following: 'ignoreResponse',
+-- 'jsonResponse', 'bsResponse' (to get strict 'ByteString'), 'lbsResponse'
+-- (to get lazy 'BL.ByteString'), and 'returnRequest' (makes no request,
+-- just returns response, used for testing).
+--
+-- Finally @options@ is a 'Monoid' that holds a composite 'Option' for all
+-- other optional things like query parameters, headers, non-standard port
+-- number, etc. There are quite a few things you can put there, see
+-- corresponding section in the documentation. If you don't need anything at
+-- all, pass 'mempty'.
+--
+-- See the examples below to get on the speed very quickly.
+--
+-- ==== __Examples__
+--
+-- First, this is a piece of boilerplate that should be in place before you
+-- try the examples:
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- >
+-- > module Main (main) where
+-- >
+-- > import Control.Exception (throwIO)
+-- > import Control.Monad
+-- > import Data.Aeson
+-- > import Data.Maybe (fromJust)
+-- > import Data.Monoid ((<>))
+-- > import Data.Text (Text)
+-- > import GHC.Generics
+-- > import Network.HTTP.Req
+-- > import qualified Data.ByteString.Char8 as B
+-- >
+-- > instance MonadHttp IO where
+-- >   handleHttpException = throwIO
+--
+-- We will be making requests against the <https://httpbin.org> service.
+--
+-- Make a GET request, grab 5 random bytes:
+--
+-- > main :: IO ()
+-- > main = do
+-- >   let n :: Int
+-- >       n = 5
+-- >   bs <- req GET (https "httpbin.org" /: "bytes" /~ n) NoReqBody bsResponse mempty
+-- >   B.putStrLn (responseBody bs)
+--
+-- The same, but now we use a query parameter named @\"seed\"@ to control
+-- seed of the generator:
+--
+-- > main :: IO ()
+-- > main = do
+-- >   let n, seed :: Int
+-- >       n    = 5
+-- >       seed = 100
+-- >   bs <- req GET (https "httpbin.org" /: "bytes" /~ n) NoReqBody bsResponse $
+-- >     "seed" =: seed
+-- >   B.putStrLn (responseBody bs)
+--
+-- POST JSON data and get some info about the POST request:
+--
+-- > data MyData = MyData
+-- >   { size  :: Int
+-- >   , color :: Text
+-- >   } deriving (Show, Generic)
+-- >
+-- > instance ToJSON MyData
+-- > instance FromJSON MyData
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   let myData = MyData
+-- >         { size  = 6
+-- >         , color = "Green" }
+-- >   v <- req POST (https "httpbin.org" /: "post") (ReqBodyJson myData) jsonResponse mempty
+-- >   print (responseBody v :: Value)
+--
+-- Sending URL-encoded body:
+--
+-- > main :: IO ()
+-- > main = do
+-- >   let params =
+-- >         "foo" =: ("bar" :: Text) <>
+-- >         queryFlag "baz"
+-- >   response <- req POST (https "httpbin.org" /: "post") (ReqBodyUrlEnc params) jsonResponse mempty
+-- >   print (responseBody response :: Value)
+--
+-- Using various optional parameters and URL that is not known in advance:
+--
+-- > main :: IO ()
+-- > main = do
+-- >   -- This is an example of what to do when URL is given dynamically. Of
+-- >   -- course in a real application you may not want to use 'fromJust'.
+-- >   let (url, options) = fromJust (parseUrlHttps "https://httpbin.org/get?foo=bar")
+-- >   response <- req GET url NoReqBody jsonResponse $
+-- >     "from" =: (15 :: Int)           <>
+-- >     "to"   =: (67 :: Int)           <>
+-- >     basicAuth "username" "password" <>
+-- >     options                         <> -- contains the ?foo=bar part
+-- >     port 443 -- here you can put any port of course
+-- >   print (responseBody response :: Value)
 
 req
   :: forall m method body response scheme.
@@ -499,16 +615,16 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- $url
 --
 -- We use 'Url's which are correct by construction, see 'Url'. To build a
--- 'Url' from 'ByteString', use 'parseUrlHttp' or 'parseUrlHttps'.
+-- 'Url' from a 'ByteString', use 'parseUrlHttp' or 'parseUrlHttps'.
 
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
 -- specifying the scheme and host at the same time. Then use the @('/~')@
 -- and @('/:')@ operators to grow path one piece at a time. Every single
--- piece of path will be url(percent)-encoded, so @('/:')@ is the only way
--- to have forward slashes between path segments. This approach makes
--- working with dynamic path segments easy and safe. See examples below how
--- to represent various 'Url's (make sure the @OverloadedStrings@ language
--- extension is enabled).
+-- piece of path will be url(percent)-encoded, so using @('/~')@ and
+-- @('/:')@ is the only way to have forward slashes between path segments.
+-- This approach makes working with dynamic path segments easy and safe. See
+-- examples below how to represent various 'Url's (make sure the
+-- @OverloadedStrings@ language extension is enabled).
 --
 -- ==== __Examples__
 --
@@ -675,16 +791,9 @@ instance HttpBody ReqBodyLbs where
 -- | Form URL-encoded body. This can hold a collection of parameters which
 -- are encoded similarly to query parameters at the end of query string,
 -- with the only difference that they are stored in request body. The
--- similarity is reflected in API as well, as you can use the same
+-- similarity is reflected in the API as well, as you can use the same
 -- combinators you would use to add query parameters: @('=:')@ and
 -- 'queryFlag'.
---
--- Here is an example of use:
---
--- > req POST (https "httpbin.org" /: "post") (ReqBodyUrlEnc params) mempty
--- >   where params =
--- >     "foo" =: "bar" <>
--- >     queryFlag "baz"
 --
 -- This body option sets the @Content-Type@ header to
 -- @\"application/x-www-from-urlencoded\"@ value.
@@ -1051,7 +1160,7 @@ instance FromJSON a => HttpResponse (JsonResponse a) where
 -- | Use this as the forth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
 
-jsonResponse :: Proxy JsonResponse
+jsonResponse :: Proxy (JsonResponse a)
 jsonResponse = Proxy
 
 -- | Make a request and interpret body of response as a strict 'ByteString'.
