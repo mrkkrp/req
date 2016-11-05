@@ -168,27 +168,39 @@ module Network.HTTP.Req
   , responseTimeout
   , httpVersion
     -- * Response
+    -- $response
     -- ** Response interpretations
-  , IgnoredResponseBody
+  , IgnoreResponse
+  , ignoreResponse
+  , JsonResponse
+  , jsonResponse
+  , BsResponse
+  , bsResponse
+  , LbsResponse
+  , lbsResponse
+  , ReturnRequest
+  , returnRequest
     -- ** Inspecting a response
   , responseBody
   , responseStatusCode
   , responseStatusMessage
   , responseHeader
   , responseCookieJar
+  , responseRequest
     -- ** Defining your own interpretation
   , HttpResponse (..)
     -- * Other
+  , HttpException (..)
   , CanHaveBody (..)
   , Scheme (..) )
 where
 
 import Control.Applicative
 import Control.Arrow (first, second)
-import Control.Exception (try)
+import Control.Exception (Exception, try, catch, throwIO)
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson (ToJSON (..))
+import Data.Aeson (ToJSON (..), FromJSON (..))
 import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Default.Class
@@ -241,9 +253,10 @@ req
   => method            -- ^ HTTP method
   -> Url scheme        -- ^ 'Url' — location of resource
   -> body              -- ^ Body of the request
+  -> Proxy response    -- ^ A hint how to interpret response
   -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
-req method url body options = do
+req method url body Proxy options = do
   config  <- getHttpConfig
   manager <- liftIO (readIORef globalManager)
   let -- NOTE First appearance of any given header wins. This allows to
@@ -262,7 +275,8 @@ req method url body options = do
         getRequestMod (Womb body   :: Womb "body"   body) <>
         getRequestMod url                                 <>
         getRequestMod (Womb method :: Womb "method" method)
-  liftIO (try $ getHttpResponse manager request)
+      wrappingVanilla m = catch m (throwIO . VanillaHttpException)
+  (liftIO . try . wrappingVanilla) (getHttpResponse request manager)
     >>= either handleHttpException return
 
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
@@ -301,13 +315,13 @@ class MonadIO m => MonadHttp m where
 
   {-# MINIMAL handleHttpException #-}
 
-  -- | This method describes how to deal with 'L.HttpException' that was
+  -- | This method describes how to deal with 'HttpException' that was
   -- caught by the library. One option is to re-throw it if you are OK with
   -- exceptions, but if you prefer working with something like
   -- 'Control.Monad.Error.MonadError', this is the right place to pass it to
   -- 'Control.Monad.Error.throwError' for example.
 
-  handleHttpException :: L.HttpException -> m a
+  handleHttpException :: HttpException -> m a
 
   -- | Return 'HttpConfig' to be used when performing HTTP requests. Default
   -- implementation returns its 'def' value, which is described in the
@@ -986,9 +1000,116 @@ httpVersion major minor = withRequest $ \x ->
   x { L.requestVersion = Y.HttpVersion major minor }
 
 ----------------------------------------------------------------------------
+-- Response
+
+-- $response
+--
+-- This section is divided into three sub-sections. The first one describes
+-- options for response interpretation that are available to you
+-- out-of-the-box. The second section called “Inspecting a response” lists a
+-- set of functions that can be used to extract useful info from a response
+-- returned by 'req'. Finally the third section talks about 'HttpResponse'
+-- type class that allows user to add new interpretations of HTTP responses.
+
+----------------------------------------------------------------------------
 -- Response interpretations
 
-data IgnoredResponseBody = IgnoredResponseBody (L.Response ())
+-- | Make a request and ignore body of response.
+
+data IgnoreResponse = IgnoreResponse (L.Response ())
+
+instance HttpResponse IgnoreResponse where
+  type HttpResponseBody IgnoreResponse = ()
+  toVanillaResponse (IgnoreResponse response) = response
+  getHttpResponse request manager =
+    IgnoreResponse <$> liftIO (L.httpNoBody request manager)
+
+-- | Use this as the fourth argument of 'req' to specify that you want it to
+-- return the 'IgnoreResponse' interpretation.
+
+ignoreResponse :: Proxy IgnoreResponse
+ignoreResponse = Proxy
+
+-- | Make a request and interpret body of response as JSON. The
+-- 'handleHttpException' method of 'MonadHttp' instance corresponding to
+-- monad in which you use 'req' will determine what to do in the case when
+-- parsing fails ('JsonHttpException' constructor will be used).
+--
+-- The @req-conduit@ package has an alternative response interpretation that
+-- streams and parses JSON object in constant space using @conduit@.
+
+newtype JsonResponse a = JsonResponse (L.Response a)
+
+instance FromJSON a => HttpResponse (JsonResponse a) where
+  type HttpResponseBody (JsonResponse a) = a
+  toVanillaResponse (JsonResponse response) = response
+  getHttpResponse request manager = do
+    response <- L.httpLbs request manager
+    case A.eitherDecode (L.responseBody response) of
+      Left e -> throwIO (JsonHttpException e)
+      Right x -> return $ JsonResponse response { L.responseBody = x }
+
+-- | Use this as the forth argument of 'req' to specify that you want it to
+-- return the 'JsonResponse' interpretation.
+
+jsonResponse :: Proxy JsonResponse
+jsonResponse = Proxy
+
+-- | Make a request and interpret body of response as a strict 'ByteString'.
+
+newtype BsResponse = BsResponse (L.Response ByteString)
+
+instance HttpResponse BsResponse where
+  type HttpResponseBody BsResponse = ByteString
+  toVanillaResponse (BsResponse response) = response
+  getHttpResponse request manager =
+    L.withResponse request manager $ \response -> do
+      chunks <- L.brConsume (L.responseBody response)
+      return $ BsResponse response { L.responseBody = B.concat chunks }
+
+-- | Use this as the forth argument of 'req' to specify that you want to
+-- interpret response body as a strict 'ByteString'.
+
+bsResponse :: Proxy BsResponse
+bsResponse = Proxy
+
+-- | Make a request and interpret body of response as a lazy
+-- 'BL.ByteString'.
+
+newtype LbsResponse = LbsResponse (L.Response BL.ByteString)
+
+instance HttpResponse LbsResponse where
+  type HttpResponseBody LbsResponse = BL.ByteString
+  toVanillaResponse (LbsResponse response) = response
+  getHttpResponse request manager =
+    LbsResponse <$> L.httpLbs request manager
+
+-- | Use this as the forth argument of 'req' to specify that you want to
+-- interpret response body as a lazy 'BL.ByteString'.
+
+lbsResponse :: Proxy LbsResponse
+lbsResponse = Proxy
+
+-- | This interpretation does not result in any call at all, but you can use
+-- the 'responseRequest' function to extract 'L.Request' that 'req' has
+-- prepared. This is useful primarily for testing.
+--
+-- Note that when you use this interpretation inspecting response will
+-- diverge (i.e. it'll blow up with an error, don't do that).
+
+newtype ReturnRequest = ReturnRequest L.Request
+
+instance HttpResponse ReturnRequest where
+  type HttpResponseBody ReturnRequest = ()
+  toVanillaResponse (ReturnRequest _) = error
+    "Network.HTTP.Req.ReturnRequest interpretation does not make requests"
+  getHttpResponse request _ = return (ReturnRequest request)
+
+-- | Use this as the forth argument of 'req' to specify that you want it to
+-- just return the request it consturcted without making any requests.
+
+returnRequest :: Proxy ReturnRequest
+returnRequest = Proxy
 
 ----------------------------------------------------------------------------
 -- Inspecting a response
@@ -1037,6 +1158,11 @@ responseCookieJar
   -> L.CookieJar
 responseCookieJar = L.responseCookieJar . toVanillaResponse
 
+-- | Get the original request from 'ReturnRequest' response interpretation.
+
+responseRequest :: ReturnRequest -> L.Request
+responseRequest (ReturnRequest request) = request
+
 ----------------------------------------------------------------------------
 -- Response — defining your own interpretation
 
@@ -1048,7 +1174,7 @@ class HttpResponse response where
 
   toVanillaResponse :: response -> L.Response (HttpResponseBody response)
 
-  getHttpResponse :: L.Manager -> L.Request -> IO response
+  getHttpResponse :: L.Request -> L.Manager -> IO response
 
 ----------------------------------------------------------------------------
 -- Other
@@ -1078,6 +1204,17 @@ class RequestComponent a where
 -- when instance is already chosen).
 
 newtype Womb (tag :: Symbol) a = Womb a
+
+-- | Exceptions that this library throws.
+
+data HttpException
+  = VanillaHttpException L.HttpException
+    -- ^ A wrapper with an 'L.HttpException' from "Network.HTTP.Client"
+  | JsonHttpException String
+    -- ^ A wrapper with Aeson-produced 'String' describing why decoding failed
+  deriving (Show, Typeable, Generic)
+
+instance Exception HttpException
 
 -- | A simple 'Bool'-like type we only have for better error messages. We
 -- use it as a kind and its data constructors as type-level tags.
