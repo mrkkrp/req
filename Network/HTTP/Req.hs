@@ -128,6 +128,7 @@ module Network.HTTP.Req
   , Url
   , http
   , https
+  , (/~)
   , (/:)
   , parseUrlHttp
   , parseUrlHttps
@@ -502,12 +503,13 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- 'Url' from 'ByteString', use 'parseUrlHttp' or 'parseUrlHttps'.
 
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
--- specifying the scheme and host at the same time. Then use the @('/:')@
--- operator to grow path one piece at a time. Every single piece of path
--- will be url(percent)-encoded, so @('/:')@ is the only way to have forward
--- slashes between path segments. This approach makes working with dynamic
--- path segments easy and safe. See examples below how to represent various
--- 'Url's (make sure the @OverloadedStrings@ language extension is enabled).
+-- specifying the scheme and host at the same time. Then use the @('/~')@
+-- and @('/:')@ operators to grow path one piece at a time. Every single
+-- piece of path will be url(percent)-encoded, so @('/:')@ is the only way
+-- to have forward slashes between path segments. This approach makes
+-- working with dynamic path segments easy and safe. See examples below how
+-- to represent various 'Url's (make sure the @OverloadedStrings@ language
+-- extension is enabled).
 --
 -- ==== __Examples__
 --
@@ -523,7 +525,7 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- > https "httpbin.org" /: "foo" /: "bar/baz"
 -- > -- https://httpbin.org/foo/bar%2Fbaz
 --
--- > https "httpbin.org" /: "bytes" /: (10 :: Int)
+-- > https "httpbin.org" /: "bytes" /~ (10 :: Int)
 -- > -- https://httpbin.org/bytes/10
 --
 -- > https "юникод.рф"
@@ -548,9 +550,16 @@ https = Url Https . pure
 -- | Grow given 'Url' appending a single path segment to it. Note that the
 -- path segment can be of any type that is an instance of 'ToHttpApiData'.
 
+infixl 5 /~
+(/~) :: ToHttpApiData a => Url scheme -> a -> Url scheme
+Url secure path /~ segment = Url secure (NE.cons (toUrlPiece segment) path)
+
+-- | Type-constrained version of @('/~')@ to remove ambiguity in cases when
+-- next URL piece is a 'Text' literal.
+
 infixl 5 /:
-(/:) :: ToHttpApiData a => Url scheme -> a -> Url scheme
-Url secure path /: segment = Url secure (NE.cons (toUrlPiece segment) path)
+(/:) :: Url scheme -> Text -> Url scheme
+(/:) = (/~)
 
 -- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
 -- (possibly with some 'Option's) from a 'ByteString'. This is useful when
