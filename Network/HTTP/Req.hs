@@ -306,6 +306,9 @@ globalManager = unsafePerformIO $ do
 --
 -- To use 'req' in your monad, all you need to do is to make the monad an
 -- instance of the 'MonadHttp' type class.
+--
+-- When writing a library, keep your API polymorphic in terms of
+-- 'MonadHttp', only define instance of 'MonadHttp' in final application.
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
