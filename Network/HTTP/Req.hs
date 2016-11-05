@@ -33,15 +33,14 @@
 -- but it requires a bit more typing.
 --
 -- “Type-safe” means that the library is protective and eliminates certain
--- class of errors compared to alternative libraries like @wreq@ or vanilla
--- @http-client@ and friends. For example, we have correct-by-construction
--- 'Url's, it's guaranteed that user does not send request body when using
--- methods like 'GET' or 'OPTIONS', amount of implicit assumptions is
--- minimized by making user specify his\/her intentions in explicit form
--- (for example, it's not possible to avoid specifying body or method of a
--- request). Authentication methods that assume TLS force user to use TLS on
--- type level. The library carefully hides underlying types from lower-level
--- @http-client@ package because it's not type safe enough (for example
+-- class of errors. For example, we have correct-by-construction 'Url's,
+-- it's guaranteed that user does not send request body when using methods
+-- like 'GET' or 'OPTIONS', amount of implicit assumptions is minimized by
+-- making user specify his\/her intentions in explicit form (for example,
+-- it's not possible to avoid specifying body or method of a request).
+-- Authentication methods that assume TLS force user to use TLS on type
+-- level. The library carefully hides underlying types from lower-level
+-- @http-client@ package because it's not safe enough (for example
 -- 'L.Request' is an instance of 'Data.String.IsString' and if it's
 -- malformed, it will blow up at run-time).
 --
@@ -169,7 +168,6 @@ module Network.HTTP.Req
   , responseTimeout
   , httpVersion
     -- * Response
-    -- $response
     -- ** Response interpretations
   , IgnoreResponse
   , ignoreResponse
@@ -189,6 +187,7 @@ module Network.HTTP.Req
   , responseCookieJar
   , responseRequest
     -- ** Defining your own interpretation
+    -- $new-response-interpretation
   , HttpResponse (..)
     -- * Other
   , HttpException (..)
@@ -759,8 +758,6 @@ instance HttpBody body => RequestComponent (Womb "body" body) where
 -- optional parameters like query parameters and headers. See sections below
 -- to learn which 'Option' primitives are available.
 
--- TODO We need examples here.
-
 data Option (scheme :: Scheme) =
   Option (Endo (Y.QueryText, L.Request)) (Maybe (Endo L.Request))
   -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
@@ -880,7 +877,7 @@ attachHeader name value x =
 --
 -- Support for cookies is quite minimalistic at the moment, its' possible to
 -- specify which cookies to send using 'cookieJar' and inspect 'L.Response'
--- to extract 'L.CookieJar' from it.
+-- to extract 'L.CookieJar' from it (see 'responseCookieJar').
 
 -- | Use the given 'L.CookieJar'. A 'L.CookieJar' can be obtained from a
 -- 'L.Response' record.
@@ -901,9 +898,20 @@ cookieJar jar = withRequest $ \x ->
 -- additional type safety that prevents leaking of credentials in cases when
 -- authentication relies on TLS for encrypting sensitive data.
 
+-- | The 'Option' adds basic authentication.
+--
+-- See also: <https://en.wikipedia.org/wiki/Basic_access_authentication>.
+
+basicAuth
+  :: ByteString        -- ^ Username
+  -> ByteString        -- ^ Password
+  -> Option 'Https     -- ^ Auth 'Option'
+basicAuth username password = asFinalizer
+  (L.applyBasicAuth username password)
+
 -- | OAuth 1 authentication 'Option'.
 --
--- See also: <https://en.wikipedia.org/wiki/OAuth>
+-- See also: <https://en.wikipedia.org/wiki/OAuth>.
 
 oAuth1
   :: ByteString        -- ^ Consumer token
@@ -914,18 +922,6 @@ oAuth1
 oAuth1 ctoken csecret otoken osecret = asFinalizer
   (OAuth1.signRequest ctoken csecret otoken osecret)
 
--- | The 'Option' adds basic authentication. The 'Text' values will be UTF-8
--- encoded.
---
--- See also: <https://en.wikipedia.org/wiki/Basic_access_authentication>
-
-basicAuth
-  :: ByteString        -- ^ Username
-  -> ByteString        -- ^ Password
-  -> Option 'Https     -- ^ Auth 'Option'
-basicAuth username password = asFinalizer
-  (L.applyBasicAuth username password)
-
 -- | The 'Option' adds an OAuth2 bearer token. This is treated by many
 -- services as the equivalent of a username and password.
 --
@@ -933,7 +929,7 @@ basicAuth username password = asFinalizer
 --
 -- > oAuth2Bearer token = header "Authorization" ("Bearer " <> token)
 --
--- See also: <https://en.wikipedia.org/wiki/OAuth>
+-- See also: <https://en.wikipedia.org/wiki/OAuth>.
 
 oAuth2Bearer
   :: ByteString        -- ^ Token
@@ -949,7 +945,7 @@ oAuth2Bearer token = asFinalizer
 --
 -- > oAuth2Token token = header "Authorization" ("token" <> token)
 --
--- See also: <https://developer.github.com/v3/oauth#3-use-the-access-token-to-access-the-api>
+-- See also: <https://developer.github.com/v3/oauth#3-use-the-access-token-to-access-the-api>.
 
 oAuth2Token
   :: ByteString        -- ^ Token
@@ -959,7 +955,7 @@ oAuth2Token token = asFinalizer
 
 -- | The 'Option' adds AWS v4 request signature.
 --
--- See also: <https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html>
+-- See also: <https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html>.
 
 awsAuth
   :: ByteString        -- ^ AWS access key
@@ -1013,18 +1009,6 @@ httpVersion
   -> Option scheme
 httpVersion major minor = withRequest $ \x ->
   x { L.requestVersion = Y.HttpVersion major minor }
-
-----------------------------------------------------------------------------
--- Response
-
--- $response
---
--- This section is divided into three sub-sections. The first one describes
--- options for response interpretation that are available to you
--- out-of-the-box. The second section called “Inspecting a response” lists a
--- set of functions that can be used to extract useful info from a response
--- returned by 'req'. Finally the third section talks about 'HttpResponse'
--- type class that allows user to add new interpretations of HTTP responses.
 
 ----------------------------------------------------------------------------
 -- Response interpretations
@@ -1181,13 +1165,27 @@ responseRequest (ReturnRequest request) = request
 ----------------------------------------------------------------------------
 -- Response — defining your own interpretation
 
--- | Here we need to provide various options how to consume responses.
+-- $new-response-interpretation
+--
+-- To create a new response interpretation you just need to make your data
+-- type an instance of 'HttpResponse' type class.
+
+-- | A type class for response interpretations. It allows to fully control
+-- how request is made and how its body is parsed.
 
 class HttpResponse response where
 
+  -- | The associated type is type of body that can be extracted from a
+  -- instance of 'HttpResponse'.
+
   type HttpResponseBody response :: *
 
+  -- | The method describes how to get underlying 'L.Response' record.
+
   toVanillaResponse :: response -> L.Response (HttpResponseBody response)
+
+  -- | This method describes how to make an HTTP request given 'L.Request'
+  -- (prepared by the rest of the library) and 'L.Manager'.
 
   getHttpResponse :: L.Request -> L.Manager -> IO response
 
