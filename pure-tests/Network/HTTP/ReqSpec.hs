@@ -1,5 +1,6 @@
 --
--- Tests for ‘req’ package.
+-- Tests for ‘req’ package. This test suite tests correctness of constructed
+-- requests.
 --
 -- Copyright © 2016 Mark Karpov <markkarpov@openmailbox.org>
 --

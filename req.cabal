@@ -82,13 +82,27 @@ library
     ghc-options:      -O2 -Wall
   default-language:   Haskell2010
 
-test-suite tests
+test-suite pure-tests
   main-is:            Spec.hs
   other-modules:      Network.HTTP.ReqSpec
-  hs-source-dirs:     tests
+  hs-source-dirs:     pure-tests
   type:               exitcode-stdio-1.0
-  build-depends:      QuickCheck   >= 2.7   && < 3.0
+  build-depends:      QuickCheck       >= 2.7 && < 3.0
                     , base             >= 4.7 && < 5.0
+                    , hspec            >= 2.0 && < 3.0
+                    , req              >= 0.1.0
+  if flag(dev)
+    ghc-options:      -Wall -Werror
+  else
+    ghc-options:      -O2 -Wall
+  default-language:   Haskell2010
+
+test-suite httpbin-tests
+  main-is:            Spec.hs
+  other-modules:      Network.HTTP.ReqSpec
+  hs-source-dirs:     httpbin-tests
+  type:               exitcode-stdio-1.0
+  build-depends:      base             >= 4.7 && < 5.0
                     , hspec            >= 2.0 && < 3.0
                     , req              >= 0.1.0
   if flag(dev)
