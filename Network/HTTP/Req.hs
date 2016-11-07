@@ -1153,9 +1153,6 @@ ignoreResponse = Proxy
 -- 'handleHttpException' method of 'MonadHttp' instance corresponding to
 -- monad in which you use 'req' will determine what to do in the case when
 -- parsing fails ('JsonHttpException' constructor will be used).
---
--- The @req-conduit@ package has an alternative response interpretation that
--- streams and parses JSON object in constant space using @conduit@.
 
 newtype JsonResponse a = JsonResponse (L.Response a)
 
