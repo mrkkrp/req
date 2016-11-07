@@ -449,7 +449,7 @@ class MonadIO m => MonadHttp m where
   -- caught by the library. One option is to re-throw it if you are OK with
   -- exceptions, but if you prefer working with something like
   -- 'Control.Monad.Error.MonadError', this is the right place to pass it to
-  -- 'Control.Monad.Error.throwError' for example.
+  -- 'Control.Monad.Error.throwError'.
 
   handleHttpException :: HttpException -> m a
 
@@ -817,8 +817,7 @@ instance HttpBody ReqBodyUrlEnc where
   getRequestContentType Proxy = pure "application/x-www-form-urlencoded"
 
 -- | An opaque monoidal value that allows to collect URL-encoded parameters
--- to be wrapped in 'ReqBodyUrlEnc' (documentation for this type has an
--- example of use).
+-- to be wrapped in 'ReqBodyUrlEnc'.
 
 newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
   deriving (Semigroup, Monoid)
@@ -839,8 +838,8 @@ class HttpBody body where
   getRequestBody :: body -> L.RequestBody
 
   -- | This method allows to optionally specify value of @Content-Type@
-  -- header that should be used when this body option is used. By default
-  -- this returns 'Nothing' and so @Content-Type@ is not set.
+  -- header that should be used with particular body option. By default it
+  -- returns 'Nothing' and so @Content-Type@ is not set.
 
   getRequestContentType :: Proxy body -> Maybe ByteString
   getRequestContentType Proxy = Nothing
