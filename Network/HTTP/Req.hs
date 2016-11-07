@@ -105,6 +105,7 @@ module Network.HTTP.Req
   ( -- * Making a request
     -- $making-a-request
     req
+  , withReqManager
     -- * Embedding requests into your monad
     -- $embedding-requests
   , MonadHttp  (..)
@@ -417,6 +418,13 @@ globalManager = unsafePerformIO $ do
   manager <- L.newManager settings
   newIORef manager
 {-# NOINLINE globalManager #-}
+
+-- | Perform an action using global implicit 'L.Manager' that the rest of
+-- the library uses. This allows to reuse connections that the 'L.Manager'
+-- controls.
+
+withReqManager :: MonadIO m => (L.Manager -> m a) -> m a
+withReqManager m = liftIO (readIORef globalManager) >>= m
 
 ----------------------------------------------------------------------------
 -- Embedding requests into your monad
