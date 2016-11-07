@@ -269,6 +269,9 @@ import qualified Network.HTTP.Types           as Y
 -- corresponding section in the documentation. If you don't need anything at
 -- all, pass 'mempty'.
 --
+-- __Note__ that if you use 'req' to do all your requests, connection
+-- sharing and reuse is done for you automatically.
+--
 -- See the examples below to get on the speed very quickly.
 --
 -- ==== __Examples__
