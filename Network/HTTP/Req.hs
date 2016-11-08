@@ -97,6 +97,10 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 
+#if MIN_VERSION_base(4,9,0)
+{-# LANGUAGE UndecidableInstances       #-}
+#endif
+
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 #endif
@@ -143,6 +147,7 @@ module Network.HTTP.Req
   , FormUrlEncodedParam
   , HttpBody (..)
   , ProvidesBody
+  , HttpBodyAllowed
     -- ** Optional parameters
     -- $optional-parameters
   , Option
@@ -211,7 +216,6 @@ import Data.List (nubBy)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Proxy
 import Data.Semigroup hiding (Option, option)
-import Data.Text (Text)
 import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
@@ -224,6 +228,7 @@ import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
 import qualified Data.CaseInsensitive         as CI
 import qualified Data.List.NonEmpty           as NE
+import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
@@ -232,6 +237,12 @@ import qualified Network.HTTP.Client.TLS      as L
 import qualified Network.HTTP.Req.AWS         as AWS
 import qualified Network.HTTP.Req.OAuth1      as OAuth1
 import qualified Network.HTTP.Types           as Y
+
+#if MIN_VERSION_base(4,9,0)
+import Data.Kind (Constraint)
+#else
+import GHC.Exts (Constraint)
+#endif
 
 ----------------------------------------------------------------------------
 -- Making a request
@@ -369,7 +380,7 @@ req
      , HttpMethod   method
      , HttpBody     body
      , HttpResponse response
-     , AllowsBody   method ~ ProvidesBody body )
+     , HttpBodyAllowed (AllowsBody method) (ProvidesBody body) )
   => method            -- ^ HTTP method
   -> Url scheme        -- ^ 'Url' — location of resource
   -> body              -- ^ Body of the request
@@ -657,20 +668,20 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- > https "юникод.рф"
 -- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 
-data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
+data Url (scheme :: Scheme) = Url Scheme (NonEmpty T.Text)
   -- NOTE The second value is path segments in reversed order.
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
 -- | Given host name, produce a 'Url' which have “http” as its scheme and
 -- empty path. This also sets port to @80@.
 
-http :: Text -> Url 'Http
+http :: T.Text -> Url 'Http
 http = Url Http . pure
 
 -- | Given host name, produce a 'Url' which have “https” as its scheme and
 -- empty path. This also sets port to @443@.
 
-https :: Text -> Url 'Https
+https :: T.Text -> Url 'Https
 https = Url Https . pure
 
 -- | Grow given 'Url' appending a single path segment to it. Note that the
@@ -684,7 +695,7 @@ Url secure path /~ segment = Url secure (NE.cons (toUrlPiece segment) path)
 -- next URL piece is a 'Text' literal.
 
 infixl 5 /:
-(/:) :: Url scheme -> Text -> Url scheme
+(/:) :: Url scheme -> T.Text -> Url scheme
 (/:) = (/~)
 
 -- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
@@ -715,7 +726,7 @@ parseUrlHttps url' = do
 -- | Get host\/collection of path pieces and possibly query parameters
 -- already converted to 'Option'. This function is not public.
 
-parseUrlHelper :: ByteString -> Maybe (NonEmpty Text, Option scheme)
+parseUrlHelper :: ByteString -> Maybe (NonEmpty T.Text, Option scheme)
 parseUrlHelper url = do
   let (path', query') = B.break (== 0x3f) url
       query = mconcat (uncurry queryParam <$> Y.parseQueryText query')
@@ -819,7 +830,7 @@ instance HttpBody ReqBodyUrlEnc where
 -- | An opaque monoidal value that allows to collect URL-encoded parameters
 -- to be wrapped in 'ReqBodyUrlEnc'.
 
-newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
+newtype FormUrlEncodedParam = FormUrlEncodedParam [(T.Text, Maybe T.Text)]
   deriving (Semigroup, Monoid)
 
 instance QueryParam FormUrlEncodedParam where
@@ -851,6 +862,23 @@ class HttpBody body where
 type family ProvidesBody body :: CanHaveBody where
   ProvidesBody NoReqBody = 'NoBody
   ProvidesBody body      = 'CanHaveBody
+
+-- | This type function allows any HTTP body if method says it
+-- 'CanHaveBody'. When method says it should have 'NoBody', the only body
+-- option to use is 'NoReqBody'.
+--
+-- __Note__: users of GHC 8.0.1 will see slightly more friendly error
+-- messages when method does not allow a body and body is provided.
+
+type family HttpBodyAllowed
+  (allowsBody   :: CanHaveBody)
+  (providesBody :: CanHaveBody) :: Constraint where
+  HttpBodyAllowed 'NoBody      'NoBody = ()
+  HttpBodyAllowed 'CanHaveBody body    = ()
+#if MIN_VERSION_base(4,9,0)
+  HttpBodyAllowed 'NoBody 'CanHaveBody = TypeError
+    ('Text "This HTTP method does not allow attaching a request body.")
+#endif
 
 instance HttpBody body => RequestComponent (Womb "body" body) where
   getRequestMod (Womb body) = Endo $ \x ->
@@ -935,7 +963,7 @@ instance RequestComponent (Option scheme) where
 -- > name =: value = queryParam name (pure value)
 
 infix 7 =:
-(=:) :: (QueryParam param, ToHttpApiData a) => Text -> a -> param
+(=:) :: (QueryParam param, ToHttpApiData a) => T.Text -> a -> param
 name =: value = queryParam name (pure value)
 
 -- | Construct a flag, that is, valueless query parameter. For example, in
@@ -947,7 +975,7 @@ name =: value = queryParam name (pure value)
 --
 -- > queryFlag name = queryParam name Nothing
 
-queryFlag :: QueryParam param => Text -> param
+queryFlag :: QueryParam param => T.Text -> param
 queryFlag name = queryParam name (Nothing :: Maybe ())
 
 -- | A type class for query-parameter-like things. The reason to have
@@ -962,7 +990,7 @@ class QueryParam param where
   -- way). It's recommended to use @('=:')@ and 'queryFlag' instead of this
   -- method, because they are easier to read.
 
-  queryParam :: ToHttpApiData a => Text -> Maybe a -> param
+  queryParam :: ToHttpApiData a => T.Text -> Maybe a -> param
 
 instance QueryParam (Option scheme) where
   queryParam name mvalue =
