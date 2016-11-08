@@ -226,6 +226,97 @@ spec = do
         property $ \cjar -> do
           request <- req_ GET url NoReqBody (cookieJar cjar)
           L.cookieJar request `shouldBe` pure cjar
+    describe "basicAuth" $ do
+      it "sets Authorization header to correct value" $
+        property $ \username password -> do
+          request <- req_ GET url NoReqBody (basicAuth username password)
+          lookup "Authorization" (L.requestHeaders request) `shouldBe`
+            pure (basicAuthHeader username password)
+      it "overwrites manual setting of header" $
+        property $ \username password value -> do
+          request0 <- req_ GET url NoReqBody
+            (basicAuth username password <> header "Authorization" value)
+          request1 <- req_ GET url NoReqBody
+            (header "Authorization" value <> basicAuth username password)
+          let result = basicAuthHeader username password
+          lookup "Authorization" (L.requestHeaders request0) `shouldBe`
+            pure result
+          lookup "Authorization" (L.requestHeaders request1) `shouldBe`
+            pure result
+      it "left auth option wins" $
+        property $ \username0 password0 username1 password1 -> do
+          request <- req_ GET url NoReqBody
+            (basicAuth username0 password0 <> basicAuth username1 password1)
+          lookup "Authorization" (L.requestHeaders request) `shouldBe`
+            pure (basicAuthHeader username0 password0)
+    describe "oAuth1" $
+      it "does something right" pending -- TODO
+    describe "oAuth2Bearer" $ do
+      it "sets Authorization header to correct value" $
+        property $ \token -> do
+          request <- req_ GET url NoReqBody (oAuth2Bearer token)
+          lookup "Authorization" (L.requestHeaders request) `shouldBe`
+            pure ("Bearer " <> token)
+      it "overwrites manual setting of header" $
+        property $ \token value -> do
+          request0 <- req_ GET url NoReqBody
+            (oAuth2Bearer token <> header "Authorization" value)
+          request1 <- req_ GET url NoReqBody
+            (header "Authorization" value <> oAuth2Bearer token)
+          let result = "Bearer " <> token
+          lookup "Authorization" (L.requestHeaders request0) `shouldBe`
+            pure result
+          lookup "Authorization" (L.requestHeaders request1) `shouldBe`
+            pure result
+      it "left auth option wins" $
+        property $ \token0 token1 -> do
+          request <- req_ GET url NoReqBody
+            (oAuth2Bearer token0 <> oAuth2Bearer token1)
+          lookup "Authorization" (L.requestHeaders request) `shouldBe`
+            pure ("Bearer " <> token0)
+    describe "oAuth2Token" $ do
+      it "sets Authorization header to correct value" $
+        property $ \token -> do
+          request <- req_ GET url NoReqBody (oAuth2Token token)
+          lookup "Authorization" (L.requestHeaders request) `shouldBe`
+            pure ("token " <> token)
+      it "overwrites manual setting of header" $
+        property $ \token value -> do
+          request0 <- req_ GET url NoReqBody
+            (oAuth2Token token <> header "Authorization" value)
+          request1 <- req_ GET url NoReqBody
+            (header "Authorization" value <> oAuth2Token token)
+          let result = "token " <> token
+          lookup "Authorization" (L.requestHeaders request0) `shouldBe`
+            pure result
+          lookup "Authorization" (L.requestHeaders request1) `shouldBe`
+            pure result
+      it "left auth option wins" $
+        property $ \token0 token1 -> do
+          request <- req_ GET url NoReqBody
+            (oAuth2Token token0 <> oAuth2Token token1)
+          lookup "Authorization" (L.requestHeaders request) `shouldBe`
+            pure ("token " <> token0)
+    describe "awsAuth" $
+      it "does something right" pending -- TODO
+    describe "port" $
+      it "sets port overwriting the defaults" $
+        property $ \n -> do
+          request <- req_ GET url NoReqBody (port n)
+          L.port request `shouldBe` n
+    describe "decompress" $
+      it "sets decompress function overwriting the defaults" $
+        property $ \token -> do
+          request <- req_ GET url NoReqBody (decompress (/= token))
+          L.decompress request token `shouldBe` False
+    -- FIXME Can't really test responseTimeout right new because the
+    -- ResponseTimeout data type does not implement Eq and its constructors
+    -- are also not exported. Sent a PR.
+    describe "httpVersion" $
+      it "sets HTTP version overwriting the defaults" $
+        property $ \major minor -> do
+          request <- req_ GET url NoReqBody (httpVersion major minor)
+          L.requestVersion request `shouldBe` Y.HttpVersion major minor
 
 ----------------------------------------------------------------------------
 -- Instances
@@ -368,3 +459,10 @@ wellFormed = all (not . T.null . fst)
 
 formUrlEnc :: [(Text, Maybe Text)] -> FormUrlEncodedParam
 formUrlEnc = foldMap (uncurry queryParam)
+
+-- | Get “Authorization” basic auth header given username and password.
+
+basicAuthHeader :: ByteString -> ByteString -> ByteString
+basicAuthHeader username password =
+  fromJust . lookup Y.hAuthorization . L.requestHeaders $
+    L.applyBasicAuth username password L.defaultRequest
