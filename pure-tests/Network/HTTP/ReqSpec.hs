@@ -51,18 +51,22 @@ where
 import Control.Exception (throwIO)
 import Control.Monad.Reader
 import Data.ByteString (ByteString)
+import Data.Maybe (isNothing, fromJust)
+import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
 import Network.HTTP.Req
 import Test.Hspec
 import Test.Hspec.Core.Spec (SpecM)
 import Test.QuickCheck
-import qualified Data.ByteString       as B
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as T
-import qualified Network.HTTP.Client   as L
-import qualified Network.HTTP.Types    as Y
+import qualified Blaze.ByteString.Builder as BB
+import qualified Data.ByteString          as B
+import qualified Data.ByteString.Char8    as B8
+import qualified Data.ByteString.Lazy     as BL
+import qualified Data.Text                as T
+import qualified Data.Text.Encoding       as T
+import qualified Network.HTTP.Client      as L
+import qualified Network.HTTP.Types       as Y
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -71,15 +75,16 @@ import Data.Monoid (mempty)
 
 spec :: Spec
 spec = do
-  describe "getHttpConfig" $ do
-    it "has effect on resulting request" $ do
+
+  describe "config" $
+    it "getHttpConfig has effect on resulting request" $
       property $ \config -> do
         request <- runReaderT (req_ GET url NoReqBody mempty) config
         L.proxy         request `shouldBe` httpConfigProxy         config
         L.redirectCount request `shouldBe` httpConfigRedirectCount config
+
   describe "methods" $ do
-    let -- 'mnth' = method name test helper
-        mnth
+    let mnth
           :: forall method.
              ( HttpMethod method
              , HttpBodyAllowed (AllowsBody method) 'NoBody )
@@ -87,7 +92,7 @@ spec = do
           -> SpecM () ()
         mnth method = do
           let name = httpMethodName (Proxy :: Proxy method)
-          describe (B8.unpack name) $ do
+          describe (B8.unpack name) $
             it "affects name of HTTP method" $ do
               request <- req_ method url NoReqBody mempty
               L.method request `shouldBe` name
@@ -100,14 +105,73 @@ spec = do
     mnth CONNECT
     mnth OPTIONS
     mnth PATCH
+
   describe "urls" $ do
-    describe "http" $ do
-      it "sets all the params" $ do
+    describe "http" $
+      it "sets all the params correctly" $
         property $ \host -> do
           request <- req_ GET (http host) NoReqBody mempty
           L.secure request `shouldBe` False
           L.port   request `shouldBe` 80
           L.host   request `shouldBe` urlEncode host
+    describe "https" $
+      it "sets all the params correctly" $
+        property $ \host -> do
+          request <- req_ GET (https host) NoReqBody mempty
+          L.secure request `shouldBe` True
+          L.port   request `shouldBe` 443
+          L.host   request `shouldBe` urlEncode host
+    describe "(/~)" $
+      it "attaches a path piece that is URL-encoded" $
+        property $ \host pieces -> do
+          let url' = foldl (/~) (https host) pieces
+          request <- req_ GET url' NoReqBody mempty
+          L.host request `shouldBe` urlEncode host
+          L.path request `shouldBe` encodePathPieces pieces
+    describe "(/:)" $
+      it "attaches a path piece that is URL-encoded" $
+        property $ \host pieces -> do
+          let url' = foldl (/:) (https host) pieces
+          request <- req_ GET url' NoReqBody mempty
+          L.host request `shouldBe` urlEncode host
+          L.path request `shouldBe` encodePathPieces pieces
+    describe "parseUrlHttp" $ do
+      it "does not recognize non-http schemes" $
+        parseUrlHttp "https://httpbin.org" `shouldSatisfy` isNothing
+      it "parses correct URLs" $
+        property $ \host pieces queryParams ->
+          not (T.null host) && wellFormed queryParams ==> do
+          let (url', path, queryString) =
+                assembleUrl Http host pieces queryParams
+              (url'', options) = fromJust (parseUrlHttp url')
+          request <- req_ GET url'' NoReqBody options
+          L.host        request `shouldBe` urlEncode host
+          L.path        request `shouldBe` path
+          L.queryString request `shouldBe` queryString
+    describe "parseUrlHttps" $ do
+      it "does not recognize non-https schemes" $
+        parseUrlHttps "http://httpbin.org" `shouldSatisfy` isNothing
+      it "parses correct URLs" $
+        property $ \host pieces queryParams ->
+          not (T.null host) && wellFormed queryParams ==> do
+          let (url', path, queryString) =
+                assembleUrl Https host pieces queryParams
+              (url'', options) = fromJust (parseUrlHttps url')
+          request <- req_ GET url'' NoReqBody options
+          L.host        request `shouldBe` urlEncode host
+          L.path        request `shouldBe` path
+          L.queryString request `shouldBe` queryString
+
+  describe "bodies" $ do
+    describe "NoReqBody" $ do
+      it "sets body to empty byte string" $ do
+        request <- req_ GET url NoReqBody mempty
+        case L.requestBody request of
+          L.RequestBodyBS x -> x `shouldBe` B.empty
+          _ -> expectationFailure "Something is wrong with request body."
+  -- TODO finish with request bodies
+
+  -- TODO all options, OAuth1 and AWS pending
 
 ----------------------------------------------------------------------------
 -- Instances
@@ -144,6 +208,9 @@ instance Arbitrary ByteString where
 instance Arbitrary Text where
   arbitrary = T.pack <$> arbitrary
 
+instance Show (Option scheme) where
+  show _ = "<cannot be shown>"
+
 ----------------------------------------------------------------------------
 -- Helpers
 
@@ -167,5 +234,35 @@ req_ method url' body options =
 url :: Url 'Https
 url = https "httpbin.org"
 
+-- | Percent encode given 'Text'.
+
 urlEncode :: Text -> ByteString
 urlEncode = Y.urlEncode False . T.encodeUtf8
+
+-- | Build URL path from given path pieces.
+
+encodePathPieces :: [Text] -> ByteString
+encodePathPieces = BL.toStrict . BB.toLazyByteString . Y.encodePathSegments
+
+-- | Assemble entire URL.
+
+assembleUrl
+  :: Scheme            -- ^ Scheme
+  -> Text              -- ^ Host
+  -> [Text]            -- ^ Path pieces
+  -> [(Text, Maybe Text)] -- ^ Query parameters
+  -> (ByteString, ByteString, ByteString) -- ^ URL, path, query string
+assembleUrl scheme' host' pathPieces queryParams =
+  (scheme <> host <> path <> queryString, path, queryString)
+  where
+    scheme = case scheme' of
+      Http  -> "http://"
+      Https -> "https://"
+    host        = urlEncode host'
+    path        = encodePathPieces pathPieces
+    queryString = Y.renderQuery True (Y.queryTextToQuery queryParams)
+
+-- | Check if collection of query params is well-formed.
+
+wellFormed :: [(Text, Maybe Text)] -> Bool
+wellFormed = all (not . T.null . fst)
