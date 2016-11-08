@@ -33,6 +33,7 @@
 
 {-# LANGUAGE CPP                  #-}
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RankNTypes           #-}
@@ -50,19 +51,24 @@ where
 
 import Control.Exception (throwIO)
 import Control.Monad.Reader
+import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
 import Data.Maybe (isNothing, fromJust)
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
+import Data.Time
+import GHC.Generics
 import Network.HTTP.Req
 import Test.Hspec
 import Test.Hspec.Core.Spec (SpecM)
 import Test.QuickCheck
 import qualified Blaze.ByteString.Builder as BB
+import qualified Data.Aeson               as A
 import qualified Data.ByteString          as B
 import qualified Data.ByteString.Char8    as B8
 import qualified Data.ByteString.Lazy     as BL
+import qualified Data.CaseInsensitive     as CI
 import qualified Data.Text                as T
 import qualified Data.Text.Encoding       as T
 import qualified Network.HTTP.Client      as L
@@ -70,6 +76,7 @@ import qualified Network.HTTP.Types       as Y
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
+import Data.Foldable (foldMap)
 import Data.Monoid (mempty)
 #endif
 
@@ -163,15 +170,62 @@ spec = do
           L.queryString request `shouldBe` queryString
 
   describe "bodies" $ do
-    describe "NoReqBody" $ do
+    describe "NoReqBody" $
       it "sets body to empty byte string" $ do
-        request <- req_ GET url NoReqBody mempty
+        request <- req_ POST url NoReqBody mempty
         case L.requestBody request of
           L.RequestBodyBS x -> x `shouldBe` B.empty
-          _ -> expectationFailure "Something is wrong with request body."
-  -- TODO finish with request bodies
+          _ -> expectationFailure "Wrong request body constructor."
+    describe "ReqBodyJson" $
+      it "sets body to correct lazy byte string" $
+        property $ \thing -> do
+          request <- req_ POST url (ReqBodyJson thing) mempty
+          case L.requestBody request of
+            L.RequestBodyLBS x -> x `shouldBe` A.encode (thing :: Thing)
+            _ -> expectationFailure "Wrong request body constructor."
+    describe "ReqBodyBs" $
+      it "sets body to specified strict byte string" $
+        property $ \bs -> do
+          request <- req_ POST url (ReqBodyBs bs) mempty
+          case L.requestBody request of
+            L.RequestBodyBS x -> x `shouldBe` bs
+            _ -> expectationFailure "Wrong request body constructor."
+    describe "ReqBodyLbs" $
+     it "sets body to specified lazy byte string" $
+        property $ \lbs -> do
+          request <- req_ POST url (ReqBodyLbs lbs) mempty
+          case L.requestBody request of
+            L.RequestBodyLBS x -> x `shouldBe` lbs
+            _ -> expectationFailure "Wrong request body constructor."
+    describe "ReqBodyUrlEnc" $
+      it "sets body to correct lazy byte string" $
+        property $ \params -> do
+          request <- req_ POST url (ReqBodyUrlEnc (formUrlEnc params)) mempty
+          case L.requestBody request of
+            L.RequestBodyLBS x -> x `shouldBe` renderQuery params
+            _ -> expectationFailure "Wrong request body constructor."
 
-  -- TODO all options, OAuth1 and AWS pending
+  describe "optional parameters" $ do
+    describe "header" $ do
+      it "sets specified header value" $
+        property $ \name value -> do
+          request <- req_ GET url NoReqBody (header name value)
+          lookup (CI.mk name) (L.requestHeaders request) `shouldBe` pure value
+      it "left header wins" $
+        property $ \name value0 value1 -> do
+          request <- req_ GET url NoReqBody
+            (header name value0 <> header name value1)
+          lookup (CI.mk name) (L.requestHeaders request) `shouldBe` pure value0
+      it "overwrites headers set by other parts of the lib" $
+        property $ \value -> do
+          request <- req_ POST url (ReqBodyUrlEnc mempty)
+            (header "Content-Type" value)
+          lookup "Content-Type" (L.requestHeaders request) `shouldBe` pure value
+    describe "cookieJar" $
+      it "cookie jar is set without modifications" $
+        property $ \cjar -> do
+          request <- req_ GET url NoReqBody (cookieJar cjar)
+          L.cookieJar request `shouldBe` pure cjar
 
 ----------------------------------------------------------------------------
 -- Instances
@@ -205,11 +259,51 @@ instance Arbitrary L.Proxy where
 instance Arbitrary ByteString where
   arbitrary = B.pack <$> arbitrary
 
+instance Arbitrary BL.ByteString where
+  arbitrary = BL.pack <$> arbitrary
+
 instance Arbitrary Text where
   arbitrary = T.pack <$> arbitrary
 
 instance Show (Option scheme) where
   show _ = "<cannot be shown>"
+
+data Thing = Thing
+  { _thingBool :: Bool
+  , _thingText :: Text
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON Thing
+
+instance Arbitrary Thing where
+  arbitrary = Thing <$> arbitrary <*> arbitrary
+
+instance Arbitrary L.CookieJar where
+  arbitrary = L.createCookieJar <$> arbitrary
+
+instance Arbitrary L.Cookie where
+  arbitrary = do
+    cookie_name          <- arbitrary
+    cookie_value         <- arbitrary
+    cookie_expiry_time   <- arbitrary
+    cookie_domain        <- arbitrary
+    cookie_path          <- arbitrary
+    cookie_creation_time <- arbitrary
+    cookie_last_access_time <- arbitrary
+    cookie_persistent    <- arbitrary
+    cookie_host_only     <- arbitrary
+    cookie_secure_only   <- arbitrary
+    cookie_http_only     <- arbitrary
+    return L.Cookie {..}
+
+instance Arbitrary UTCTime where
+  arbitrary = UTCTime <$> arbitrary <*> arbitrary
+
+instance Arbitrary Day where
+  arbitrary = ModifiedJulianDay <$> arbitrary
+
+instance Arbitrary DiffTime where
+  arbitrary = secondsToDiffTime <$> arbitrary
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -262,7 +356,15 @@ assembleUrl scheme' host' pathPieces queryParams =
     path        = encodePathPieces pathPieces
     queryString = Y.renderQuery True (Y.queryTextToQuery queryParams)
 
+renderQuery :: [(Text, Maybe Text)] -> BL.ByteString
+renderQuery = BL.fromStrict . Y.renderQuery False . Y.queryTextToQuery
+
 -- | Check if collection of query params is well-formed.
 
 wellFormed :: [(Text, Maybe Text)] -> Bool
 wellFormed = all (not . T.null . fst)
+
+-- | Convert collection of query parameters to 'FormUrlEncodedParam' thing.
+
+formUrlEnc :: [(Text, Maybe Text)] -> FormUrlEncodedParam
+formUrlEnc = foldMap (uncurry queryParam)
