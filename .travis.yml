@@ -39,8 +39,9 @@ after_script:
  - cabal install hpc-coveralls
  - export PATH=~/.cabal/bin:$PATH
  - hpc-coveralls --coverage-mode=StrictlyFullLines
-                 --exclude-dir=tests
-                 tests
+                 --exclude-dir=pure-tests
+                 --exclude-dir=httpbin-tests
+                 pure-tests httpbin-tests
 
 notifications:
   email: false
