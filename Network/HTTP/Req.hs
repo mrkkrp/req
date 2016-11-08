@@ -1101,7 +1101,7 @@ oAuth2Token
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
 oAuth2Token token = asFinalizer
-  (attachHeader "Authorization" ("token" <> token))
+  (attachHeader "Authorization" ("token " <> token))
 
 -- | The 'Option' adds AWS v4 request signature.
 --
