@@ -223,7 +223,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Web.HttpApiData (ToHttpApiData (..))
 import qualified Blaze.ByteString.Builder     as BB
 import qualified Data.Aeson                   as A
-import qualified Data.Binary.Builder          as R
 import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
 import qualified Data.CaseInsensitive         as CI
@@ -744,7 +743,7 @@ instance RequestComponent (Url scheme) where
           Https -> 443
       , L.host   = Y.urlEncode False (T.encodeUtf8 host)
       , L.path   =
-          (BL.toStrict . R.toLazyByteString . Y.encodePathSegments) path }
+          (BL.toStrict . BB.toLazyByteString . Y.encodePathSegments) path }
 
 ----------------------------------------------------------------------------
 -- Request — Body
