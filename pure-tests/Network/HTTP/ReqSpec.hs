@@ -31,11 +31,86 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Network.HTTP.ReqSpec
   ( spec )
 where
 
+import Control.Exception (throwIO)
+import Control.Monad.Reader
+import Data.ByteString (ByteString)
+import Network.HTTP.Req
 import Test.Hspec
+import Test.QuickCheck
+import qualified Data.ByteString     as B
+import qualified Network.HTTP.Client as L
 
 spec :: Spec
-spec = return ()
+spec = do
+  describe "getHttpConfig" $ do
+    it "has effect on resulting request" $ do
+      property $ \config -> do
+        request <- runReaderT (req_ GET url NoReqBody mempty) config
+        L.proxy         request `shouldBe` httpConfigProxy         config
+        L.redirectCount request `shouldBe` httpConfigRedirectCount config
+
+----------------------------------------------------------------------------
+-- Instances
+
+instance MonadHttp IO where
+  handleHttpException = throwIO
+
+instance MonadHttp (ReaderT HttpConfig IO) where
+  handleHttpException = liftIO . throwIO
+  getHttpConfig       = ask
+
+instance Arbitrary HttpConfig where
+  arbitrary = do
+    httpConfigProxy         <- arbitrary
+    httpConfigRedirectCount <- arbitrary
+    let httpConfigAltManager = Nothing
+        httpConfigCheckResponse _ _ = return ()
+    return HttpConfig {..}
+
+instance Show HttpConfig where
+  show HttpConfig {..} =
+    "HttpConfig\n" ++
+    "{ httpConfigProxy=" ++ show httpConfigProxy ++ "\n" ++
+    ", httpRedirectCount=" ++ show httpConfigRedirectCount ++ "\n" ++
+    ", httpConfigAltManager=<cannot be shown>\n" ++
+    ", httpConfigCheckResponse=<cannot be shown>}\n"
+
+instance Arbitrary L.Proxy where
+  arbitrary = L.Proxy <$> arbitrary <*> arbitrary
+
+instance Arbitrary ByteString where
+  arbitrary = B.pack <$> arbitrary
+
+----------------------------------------------------------------------------
+-- Helpers
+
+-- | 'req' that just returns the prepared 'L.Request'.
+
+req_
+  :: ( MonadHttp   m
+     , HttpMethod  method
+     , HttpBody    body
+     , HttpBodyAllowed (AllowsBody method) (ProvidesBody body) )
+  => method            -- ^ HTTP method
+  -> Url scheme        -- ^ 'Url' — location of resource
+  -> body              -- ^ Body of the request
+  -> Option scheme     -- ^ Collection of optional parameters
+  -> m L.Request       -- ^ Vanilla request
+req_ method url' body options =
+  responseRequest <$> req method url' body returnRequest options
+
+-- | A dummy 'Url'.
+
+url :: Url 'Https
+url = https "httpbin.org"
