@@ -249,8 +249,6 @@ spec = do
             (basicAuth username0 password0 <> basicAuth username1 password1)
           lookup "Authorization" (L.requestHeaders request) `shouldBe`
             pure (basicAuthHeader username0 password0)
-    describe "oAuth1" $
-      it "does something right" pending -- TODO
     describe "oAuth2Bearer" $ do
       it "sets Authorization header to correct value" $
         property $ \token -> do
@@ -297,8 +295,6 @@ spec = do
             (oAuth2Token token0 <> oAuth2Token token1)
           lookup "Authorization" (L.requestHeaders request) `shouldBe`
             pure ("token " <> token0)
-    describe "awsAuth" $
-      it "does something right" pending -- TODO
     describe "port" $
       it "sets port overwriting the defaults" $
         property $ \n -> do

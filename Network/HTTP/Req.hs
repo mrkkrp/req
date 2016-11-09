@@ -168,10 +168,8 @@ module Network.HTTP.Req
     -- *** Authentication
     -- $authentication
   , basicAuth
-  , oAuth1
   , oAuth2Bearer
   , oAuth2Token
-  , awsAuth
     -- *** Other
   , port
   , decompress
@@ -237,8 +235,6 @@ import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
 import qualified Network.HTTP.Client.Internal as LI
 import qualified Network.HTTP.Client.TLS      as L
-import qualified Network.HTTP.Req.AWS         as AWS
-import qualified Network.HTTP.Req.OAuth1      as OAuth1
 import qualified Network.HTTP.Types           as Y
 
 #if MIN_VERSION_base(4,9,0)
@@ -1059,19 +1055,6 @@ basicAuth
 basicAuth username password = asFinalizer
   (L.applyBasicAuth username password)
 
--- | OAuth 1 authentication 'Option'.
---
--- See also: <https://en.wikipedia.org/wiki/OAuth>.
-
-oAuth1
-  :: ByteString        -- ^ Consumer token
-  -> ByteString        -- ^ Consumer secret
-  -> ByteString        -- ^ OAuth token
-  -> ByteString        -- ^ OAuth token secret
-  -> Option scheme
-oAuth1 ctoken csecret otoken osecret = asFinalizer
-  (OAuth1.signRequest ctoken csecret otoken osecret)
-
 -- | The 'Option' adds an OAuth2 bearer token. This is treated by many
 -- services as the equivalent of a username and password.
 --
@@ -1102,17 +1085,6 @@ oAuth2Token
   -> Option 'Https     -- ^ Auth 'Option'
 oAuth2Token token = asFinalizer
   (attachHeader "Authorization" ("token " <> token))
-
--- | The 'Option' adds AWS v4 request signature.
---
--- See also: <https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html>.
-
-awsAuth
-  :: ByteString        -- ^ AWS access key
-  -> ByteString        -- ^ AWS secret access key
-  -> Option 'Https     -- ^ Auth 'Option'
-awsAuth accessKey secretKey = asFinalizer
-  (AWS.signRequest accessKey secretKey)
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Other
