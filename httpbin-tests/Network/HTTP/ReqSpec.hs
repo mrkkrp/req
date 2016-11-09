@@ -44,17 +44,22 @@ where
 
 import Control.Exception (throwIO)
 import Control.Monad.Reader
-import Data.Aeson (Value (..), object, (.=))
+import Data.Aeson (Value (..), ToJSON (..), object, (.=))
 import Data.Default.Class
-import Data.HashMap.Strict (HashMap)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Network.HTTP.Req
 import Test.Hspec
 import Test.QuickCheck
-import qualified Data.ByteString     as B
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text.Encoding  as T
+import qualified Data.Aeson           as A
+import qualified Data.ByteString      as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.HashMap.Strict  as HM
+import qualified Data.Text            as T
+import qualified Data.Text.Encoding   as T
+import qualified Data.Text.IO         as TIO
+import qualified Network.HTTP.Client  as L
+import qualified Network.HTTP.Types   as Y
 
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (mempty)
@@ -64,13 +69,22 @@ import Data.Word (Word)
 spec :: Spec
 spec = do
 
-  describe "exception throwing on non 2xx-status codes" $ do
-    it "doesn't throw for 200" pending
-    it "throws indeed for non-404" pending
+  describe "exception throwing on non 2xx-status codes" $
+    it "throws indeed for non-2xx" $ do
+      let selector :: HttpException -> Bool
+          selector (VanillaHttpException
+                    (L.HttpExceptionRequest _
+                     (L.StatusCodeException response chunk))) =
+            L.responseStatus response == Y.status404 && not (B.null chunk)
+          selector _ = False
+      req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
+        `shouldThrow` selector
 
   describe "response check via httpConfigCheckResponse" $
     context "if it's set to always throw" $
-      it "throws indeed" pending
+      it "throws indeed" $
+        blindlyThrowing (req GET httpbin NoReqBody ignoreResponse mempty)
+          `shouldThrow` anyException
 
   describe "receiving user-agent header back" $
     it "works" $ do
@@ -98,7 +112,7 @@ spec = do
     it "works" $ do
       r <- req GET (httpbin /: "get") NoReqBody jsonResponse mempty
       stripOrigin (responseBody r) `shouldBe` object
-        [ "args" .= (HM.empty :: HashMap Text Text)
+        [ "args" .= emptyObject
         , "url"  .= ("https://httpbin.org/get" :: Text)
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
@@ -106,9 +120,62 @@ spec = do
       responseStatusCode    r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  -- TODO /post
-  -- TODO /patch
-  -- TODO /put
+  describe "receiving POST JSON data back" $
+    it "works" $ do
+      let text = "foo" :: Text
+          reflected = reflectJSON text
+      r <- req POST (httpbin /: "post") (ReqBodyJson text) jsonResponse mempty
+      stripOrigin (responseBody r) `shouldBe` object
+        [ "args"  .= emptyObject
+        , "json"  .= text
+        , "data"  .= reflected
+        , "url"   .= ("https://httpbin.org/post" :: Text)
+        , "headers" .= object
+          [ "Content-Type"   .= ("application/json; charset=utf-8" :: Text)
+          , "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Host"           .= ("httpbin.org" :: Text)
+          , "Content-Length" .= show (T.length reflected) ]
+        , "files" .= emptyObject
+        , "form"  .= emptyObject ]
+
+  describe "receiving PATCHed file back" $
+    it "works" $ do
+      let file :: FilePath
+          file = "httpbin-data/robots.txt"
+      contents <- TIO.readFile file
+      r <- req PATCH (httpbin /: "patch") (ReqBodyFile file) jsonResponse mempty
+      stripOrigin (responseBody r) `shouldBe` object
+        [ "args"  .= emptyObject
+        , "json"  .= Null
+        , "data"  .= contents
+        , "url"   .= ("https://httpbin.org/patch" :: Text)
+        , "headers" .= object
+          [ "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Host"           .= ("httpbin.org" :: Text)
+          , "Content-Length" .= show (T.length contents) ]
+        , "files" .= emptyObject
+        , "form"  .= emptyObject ]
+
+  describe "receiving PUT form URL-encoded data back" $
+    it "works" $ do
+      let params = "foo" =: ("bar" :: Text) <>
+            "baz" =: (5 :: Int)
+      r <- req PUT (httpbin /: "put") (ReqBodyUrlEnc params) jsonResponse mempty
+      stripOrigin (responseBody r) `shouldBe` object
+        [ "args"  .= emptyObject
+        , "json"  .= Null
+        , "data"  .= ("" :: Text)
+        , "url"   .= ("https://httpbin.org/put" :: Text)
+        , "headers" .= object
+          [ "Content-Type"   .= ("application/x-www-form-urlencoded" :: Text)
+          , "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Host"           .= ("httpbin.org" :: Text)
+          , "Content-Length" .= ("13"          :: Text) ]
+        , "files" .= emptyObject
+        , "form"  .= object
+          [ "foo" .= ("bar" :: Text)
+          , "baz" .= ("5"   :: Text) ] ]
+
   -- TODO /delete
 
   describe "receiving UTF-8 encoded Unicode data" $
@@ -234,6 +301,14 @@ prepareForShit
 prepareForShit m = runReaderT m def { httpConfigCheckResponse = noNoise }
   where noNoise _ _ = return ()
 
+-- | Run request with such settings that it throws on any response.
+
+blindlyThrowing
+  :: (forall m. MonadHttp m => m a)
+  -> IO a
+blindlyThrowing m = runReaderT m def { httpConfigCheckResponse = doit }
+  where doit _ _ = error "Oops!"
+
 -- | 'Url' representing <https://httpbin.org>.
 
 httpbin :: Url 'Https
@@ -256,3 +331,13 @@ checkStatusCode code =
       r <- prepareForShit $ req GET (httpbin /: "status" /~ code)
         NoReqBody ignoreResponse mempty
       responseStatusCode r `shouldBe` code
+
+-- | Empty JSON 'Object'.
+
+emptyObject :: Value
+emptyObject = Object HM.empty
+
+-- | Get rendered JSON value as 'Text'.
+
+reflectJSON :: ToJSON a => a -> Text
+reflectJSON = T.decodeUtf8 . BL.toStrict . A.encode
