@@ -47,6 +47,7 @@ import Control.Monad.Reader
 import Data.Aeson (Value (..), ToJSON (..), object, (.=))
 import Data.Default.Class
 import Data.Monoid ((<>))
+import Data.Proxy
 import Data.Text (Text)
 import Network.HTTP.Req
 import Test.Hspec
@@ -117,6 +118,7 @@ spec = do
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
           , "Host"            .= ("httpbin.org" :: Text) ] ]
+      responseHeader r "Content-Type" `shouldBe` return "application/json"
       responseStatusCode    r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
@@ -137,6 +139,9 @@ spec = do
           , "Content-Length" .= show (T.length reflected) ]
         , "files" .= emptyObject
         , "form"  .= emptyObject ]
+      responseHeader r "Content-Type" `shouldBe` return "application/json"
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
 
   describe "receiving PATCHed file back" $
     it "works" $ do
@@ -155,11 +160,15 @@ spec = do
           , "Content-Length" .= show (T.length contents) ]
         , "files" .= emptyObject
         , "form"  .= emptyObject ]
+      responseHeader r "Content-Type" `shouldBe` return "application/json"
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
 
   describe "receiving PUT form URL-encoded data back" $
     it "works" $ do
       let params = "foo" =: ("bar" :: Text) <>
-            "baz" =: (5 :: Int)
+            "baz" =: (5 :: Int) <>
+            queryFlag "quux"
       r <- req PUT (httpbin /: "put") (ReqBodyUrlEnc params) jsonResponse mempty
       stripOrigin (responseBody r) `shouldBe` object
         [ "args"  .= emptyObject
@@ -170,11 +179,15 @@ spec = do
           [ "Content-Type"   .= ("application/x-www-form-urlencoded" :: Text)
           , "Accept-Encoding" .= ("gzip"       :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
-          , "Content-Length" .= ("13"          :: Text) ]
+          , "Content-Length" .= ("18"          :: Text) ]
         , "files" .= emptyObject
         , "form"  .= object
           [ "foo" .= ("bar" :: Text)
-          , "baz" .= ("5"   :: Text) ] ]
+          , "baz" .= ("5"   :: Text)
+          , "quux" .= (""   :: Text) ] ]
+      responseHeader r "Content-Type" `shouldBe` return "application/json"
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
 
   -- TODO /delete
 
@@ -248,16 +261,26 @@ spec = do
   -- TODO /deny
   -- TODO /cache
 
-  describe "getting random bytes" $
+  describe "getting random bytes" $ do
     it "works" $
       property $ \n' -> do
         let n :: Word
             n = getSmall n'
         r <- req GET (httpbin /: "bytes" /~ n)
-          NoReqBody bsResponse mempty
-        responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
+          NoReqBody lbsResponse mempty
+        responseBody r `shouldSatisfy` ((== n) . fromIntegral . BL.length)
         responseStatusCode    r `shouldBe` 200
         responseStatusMessage r `shouldBe` "OK"
+    context "when we try to interpret 1000 random bytes as JSON" $
+      it "throws correct exception" $ do
+        let selector :: HttpException -> Bool
+            selector (JsonHttpException _) = True
+            selector _ = False
+            n :: Int
+            n = 1000
+        req GET (httpbin /: "bytes" /~ n) NoReqBody
+          (Proxy :: Proxy (JsonResponse Value)) mempty
+            `shouldThrow` selector
 
   describe "streaming random bytes" $
     it "works" $
