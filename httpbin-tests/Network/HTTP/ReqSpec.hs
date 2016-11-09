@@ -35,6 +35,7 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RankNTypes           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Network.HTTP.ReqSpec
@@ -44,15 +45,20 @@ where
 import Control.Exception (throwIO)
 import Control.Monad.Reader
 import Data.Aeson (Value (..), object, (.=))
+import Data.Default.Class
 import Data.HashMap.Strict (HashMap)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Network.HTTP.Req
 import Test.Hspec
+import Test.QuickCheck
+import qualified Data.ByteString     as B
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Text.Encoding  as T
 
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (mempty)
+import Data.Word (Word)
 #endif
 
 spec :: Spec
@@ -97,8 +103,114 @@ spec = do
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
           , "Host"            .= ("httpbin.org" :: Text) ] ]
-      responseStatusCode      r `shouldBe` 200
-      responseStatusMessage   r `shouldBe` "OK"
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
+
+  -- TODO /post
+  -- TODO /patch
+  -- TODO /put
+  -- TODO /delete
+
+  describe "receiving UTF-8 encoded Unicode data" $
+    it "works" $ do
+      r <- req GET (httpbin /: "encoding" /: "utf8")
+        NoReqBody bsResponse mempty
+      utf8data <- B.readFile "httpbin-data/utf8.html"
+      responseBody          r `shouldBe` utf8data
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
+
+  -- TODO /gzip
+  -- TODO /deflate
+
+  forM_ [101..102] checkStatusCode
+  forM_ [200..208] checkStatusCode
+  -- forM_ [300..308] checkStatusCode
+  forM_ [400..431] checkStatusCode
+  forM_ [500..511] checkStatusCode
+
+  -- TODO /response-headers
+  -- TODO /redirect
+
+  describe "redirects" $
+    it "follows redirects" $ do
+      r <- req GET (httpbin /: "redirect-to") NoReqBody ignoreResponse
+        ("url" =: ("https://httpbin.org" :: Text))
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
+
+  -- TODO /relative-redicet
+  -- TODO /absolute-redirect
+  -- TODO /cookies
+
+  describe "basicAuth" $ do
+    let user, password :: Text
+        user     = "Scooby"
+        password = "Doo"
+    context "when we do not send appropriate basic auth data" $
+      it "fails with 401" $ do
+        r <- prepareForShit $ req GET
+          (httpbin /: "basic-auth" /~ user /~ password)
+          NoReqBody ignoreResponse mempty
+        responseStatusCode    r `shouldBe` 401
+        responseStatusMessage r `shouldBe` "UNAUTHORIZED"
+    context "when we provide appropriate basic auth data" $
+      it "succeeds" $ do
+        r <- req GET (httpbin /: "basic-auth" /~ user /~ password)
+          NoReqBody ignoreResponse
+          (basicAuth (T.encodeUtf8 user) (T.encodeUtf8 password))
+        responseStatusCode    r `shouldBe` 200
+        responseStatusMessage r `shouldBe` "OK"
+
+  -- TODO /hidden-basic-auth
+  -- TODO /digest-auth
+  -- TODO /stream
+  -- TODO /delay
+  -- TODO /drip
+  -- TODO /range
+  -- TODO /html
+
+  describe "robots.txt" $
+    it "works" $ do
+      r <- req GET (httpbin /: "robots.txt") NoReqBody bsResponse mempty
+      robots <- B.readFile "httpbin-data/robots.txt"
+      responseBody          r `shouldBe` robots
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
+
+  -- TODO /deny
+  -- TODO /cache
+
+  describe "getting random bytes" $
+    it "works" $
+      property $ \n' -> do
+        let n :: Word
+            n = getSmall n'
+        r <- req GET (httpbin /: "bytes" /~ n)
+          NoReqBody bsResponse mempty
+        responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
+        responseStatusCode    r `shouldBe` 200
+        responseStatusMessage r `shouldBe` "OK"
+
+  describe "streaming random bytes" $
+    it "works" $
+      property $ \n' -> do
+        let n :: Word
+            n = getSmall n'
+        r <- req GET (httpbin /: "stream-bytes" /~ n)
+          NoReqBody bsResponse mempty
+        responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
+        responseStatusCode    r `shouldBe` 200
+        responseStatusMessage r `shouldBe` "OK"
+
+  -- TODO /links
+  -- TODO /image
+  -- TODO /image/png
+  -- TODO /image/jpeg
+  -- TODO /image/webp
+  -- TODO /image/svg
+  -- TODO /forms/post
+  -- TODO /xml
 
 ----------------------------------------------------------------------------
 -- Instances
@@ -113,6 +225,15 @@ instance MonadHttp (ReaderT HttpConfig IO) where
 ----------------------------------------------------------------------------
 -- Helpers
 
+-- | Run request with such settings that it does not signal error on adverse
+-- response status codes.
+
+prepareForShit
+  :: (forall m. MonadHttp m => m a)
+  -> IO a
+prepareForShit m = runReaderT m def { httpConfigCheckResponse = noNoise }
+  where noNoise _ _ = return ()
+
 -- | 'Url' representing <https://httpbin.org>.
 
 httpbin :: Url 'Https
@@ -124,3 +245,14 @@ httpbin = https "httpbin.org"
 stripOrigin :: Value -> Value
 stripOrigin (Object m) = Object (HM.delete "origin" m)
 stripOrigin value      = value
+
+-- | This is a complete test case that makes use of <https://httpbin.org> to
+-- get various response status codes.
+
+checkStatusCode :: Int -> SpecWith ()
+checkStatusCode code =
+  describe ("receiving status code " ++ show code) $
+    it "works" $ do
+      r <- prepareForShit $ req GET (httpbin /: "status" /~ code)
+        NoReqBody ignoreResponse mempty
+      responseStatusCode r `shouldBe` code
