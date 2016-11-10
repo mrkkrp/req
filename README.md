@@ -108,22 +108,24 @@ Then there is Wreq.
 not very good, as there may be new methods, like PATCH which is not new but
 still missing (well you have `customMethod`, but what is the point of having
 per-method functions if you have a more general way to use any method? you
-should be able just to insert methods in the “argument slot” of
+should be able to just insert methods in the “argument slot” of
 `customMethod` and end up with a more general solution). Now every method
 function has a companion that takes `Options` (like you have `get` and
 `getWith`). Why the duplication? Where is generality and flexibility? This
 is not all though, because you cannot really use `get` you see in the main
 module, because you want to have connection sharing. Wreq's author does not
-take the gift `Manager` from `http-client` provides, no, too simple, it
-invents the whole new thing of “sessions”. Only inside a session your
-connections will be shared and re-used. However with the session stuff you
-have yet another set of per-method functions like `get` and `getWith` —
-these are different ones, to be used with sessions! Now if you have
-multi-threaded app, here is a surprise for you: you can't share connections
-between threads as connections are shared only inside `withSession` friend
-and “session will no longer be valid after that function returns”.
-Disclaimer: I mostly don't use Wreq, see below. If something in this
-paragraph is not correct, please let me know and I'll remove it.
+take the gift of automatic connection re-use `Manager` from `http-client`
+provides, it invents the whole new thing of “sessions”. Only inside a
+session your connections will be shared and re-used. However with the
+session stuff you have yet another set of per-method functions like `get`
+and `getWith` — these are different ones, to be used with sessions! Now if
+you have multi-threaded app, here is a surprise for you: you can't share
+connections between threads as connections are shared only inside
+`withSession` friend and “session will no longer be valid after that
+function returns”. Disclaimer: I don't use Wreq, see below. If something in
+this paragraph is not correct, please let me know and I'll remove it. Also
+there are valid uses for sessions, but the point is that they are too
+inconvenient for common tasks.
 
 It's funny that one client I worked for had to have his own little wrapper
 around `http-client` just because he could not possibly use `wreq` and
