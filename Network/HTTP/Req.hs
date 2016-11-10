@@ -27,8 +27,8 @@
 -- way. Doing HTTP requests is a common task and Haskell library for this
 -- should be very approachable and clear to beginners, thus certain
 -- compromises were made. For example, one cannot currently modify
--- 'L.ManagerSettings' of default manager because the library always use the
--- same implicit global manager for simplicity and maximal connection
+-- 'L.ManagerSettings' of default manager because the library always uses
+-- the same implicit global manager for simplicity and maximal connection
 -- sharing. There is a way to use your own manager with different settings,
 -- but it requires a bit more typing.
 --
