@@ -115,7 +115,7 @@ function has a companion that takes `Options` (like you have `get` and
 is not all though, because you cannot really use `get` you see in the main
 module, because you want to have connection sharing. Wreq's author does not
 take the gift of automatic connection re-use `Manager` from `http-client`
-provides, it invents the whole new thing of “sessions”. Only inside a
+provides, he invents the whole new thing of “sessions”. Only inside a
 session your connections will be shared and re-used. However with the
 session stuff you have yet another set of per-method functions like `get`
 and `getWith` — these are different ones, to be used with sessions! Now if
@@ -129,10 +129,10 @@ inconvenient for common tasks.
 
 It's funny that one client I worked for had to have his own little wrapper
 around `http-client` just because he could not possibly use `wreq` and
-`http-client` and friends were too low-level. The previous paragraph
-extracted from a talk with a Haskell developer who works for that client.
-Then I thought to myself “something is wrong with HTTP client libraries in
-Haskell if they had to make a wrapper”.
+`http-client` and friends were too low-level. The previous paragraph is
+extracted from a talk with a Haskell developer who works for that client. I
+thought to myself “something is wrong with HTTP client libraries in Haskell
+if they had to make a wrapper”.
 
 What else? I used `servant-client` a couple of times but amount of
 boilerplate is too high. If you have several query parameters, and you use
