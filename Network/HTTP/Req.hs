@@ -260,12 +260,11 @@ import GHC.Exts (Constraint)
 -- @method@ is an HTTP method such as 'GET' or 'POST'. The documentation has
 -- a dedicated section about HTTP methods below.
 --
--- @url@ is a URL that describes location of resource you want to interact
--- with. It's of type 'Url' (if you click the link it will tell everything
--- about construction of 'Url' things).
+-- @url@ is a 'Url' that describes location of resource you want to interact
+-- with.
 --
 -- @body@ is a body option such as 'NoReqBody' or 'ReqBodyJson'. The
--- tutorial has a section about HTTP bodies, but usage in very
+-- tutorial has a section about HTTP bodies, but usage is very
 -- straightforward and should be clear from the examples below.
 --
 -- @response@ is a type hint how to make and interpret response of HTTP
@@ -909,8 +908,8 @@ data Option (scheme :: Scheme) =
   -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
   -- Request to avoid appending to existing query string in request every
   -- time new parameter is added. Additional Maybe (Endo Request) is a
-  -- finalizer that will be applied after all over options. This is for
-  -- authentication methods that sign requests based on data in Request.
+  -- finalizer that will be applied after all other transformations. This is
+  -- for authentication methods that sign requests based on data in Request.
 
 instance Semigroup (Option scheme) where
   Option er0 mr0 <> Option er1 mr1 = Option
@@ -1294,7 +1293,7 @@ responseRequest (ReturnRequest request) = request
 
 class HttpResponse response where
 
-  -- | The associated type is type of body that can be extracted from a
+  -- | The associated type is the type of body that can be extracted from a
   -- instance of 'HttpResponse'.
 
   type HttpResponseBody response :: *
@@ -1313,9 +1312,9 @@ class HttpResponse response where
 
 -- | The main class for things that are “parts” of 'L.Request' in the sense
 -- that if we have a 'L.Request', then we know how to apply an instance of
--- 'RequestComponent' changing\/overwriting something in it. 'Endo' is
--- endomorphism of functions under composition, it's used to chain different
--- request component easier using @('<>')@.
+-- 'RequestComponent' changing\/overwriting something in it. 'Endo' is a
+-- monoid of endomorphisms under composition, it's used to chain different
+-- request components easier using @('<>')@.
 
 class RequestComponent a where
 
@@ -1329,8 +1328,8 @@ class RequestComponent a where
 
 -- | This wrapper is only used to attach a type-level tag to given type.
 -- This is necessary to define instances of 'RequestComponent' for any thing
--- that implements 'HttpMethod' or 'HttpBody'. Without the tag, GHC is not
--- able to see difference between @'HttpMethod' method => 'RequestComponent'
+-- that implements 'HttpMethod' or 'HttpBody'. Without the tag, GHC can't
+-- see the difference between @'HttpMethod' method => 'RequestComponent'
 -- method@ and @'HttpBody' body => 'RequestComponent' body@ when it decides
 -- which instance to use (i.e. constraints are taken into account later,
 -- when instance is already chosen).
