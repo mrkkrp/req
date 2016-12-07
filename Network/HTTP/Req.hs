@@ -696,6 +696,16 @@ infixl 5 /:
 (/:) :: Url scheme -> T.Text -> Url scheme
 (/:) = (/~)
 
+
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+#if !(MIN_VERSION_bytestring(0,10,8))
+stripPrefix pfx str
+  | pfx `B.isPrefixOf` str = Just (B.drop (B.length pfx) str)
+  | otherwise = Nothing
+#else
+stripPrefix = B.stripPrefix
+#endif
+
 -- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
 -- (possibly with some 'Option's) from a 'ByteString'. This is useful when
 -- you are given a URL to query dynamically and don't know it beforehand.
@@ -709,7 +719,7 @@ infixl 5 /:
 
 parseUrlHttp :: ByteString -> Maybe (Url 'Http, Option scheme)
 parseUrlHttp url' = do
-  url <- B.stripPrefix "http://" url'
+  url <- stripPrefix "http://" url'
   (host :| path, option) <- parseUrlHelper url
   return (foldl (/:) (http host) path, option)
 
@@ -717,7 +727,7 @@ parseUrlHttp url' = do
 
 parseUrlHttps :: ByteString -> Maybe (Url 'Https, Option scheme)
 parseUrlHttps url' = do
-  url <- B.stripPrefix "https://" url'
+  url <- stripPrefix "https://" url'
   (host :| path, option) <- parseUrlHelper url
   return (foldl (/:) (https host) path, option)
 
