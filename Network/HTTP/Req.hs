@@ -175,6 +175,15 @@ module Network.HTTP.Req
   , decompress
   , responseTimeout
   , httpVersion
+    -- ** Multipart Form Data
+  , reqWithMultipartFormData
+  , Form.Part
+  , Form.partBS
+  , Form.partLBS
+  , partText
+  , Form.partFile
+  , Form.partFileSource
+  , Form.partFileSourceChunked
     -- * Response
     -- ** Response interpretations
   , IgnoreResponse
@@ -223,19 +232,20 @@ import GHC.Generics
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
 import Web.HttpApiData (ToHttpApiData (..))
-import qualified Blaze.ByteString.Builder     as BB
-import qualified Data.Aeson                   as A
-import qualified Data.ByteString              as B
-import qualified Data.ByteString.Lazy         as BL
-import qualified Data.CaseInsensitive         as CI
-import qualified Data.List.NonEmpty           as NE
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
-import qualified Network.Connection           as NC
-import qualified Network.HTTP.Client          as L
-import qualified Network.HTTP.Client.Internal as LI
-import qualified Network.HTTP.Client.TLS      as L
-import qualified Network.HTTP.Types           as Y
+import qualified Blaze.ByteString.Builder              as BB
+import qualified Data.Aeson                            as A
+import qualified Data.ByteString                       as B
+import qualified Data.ByteString.Lazy                  as BL
+import qualified Data.CaseInsensitive                  as CI
+import qualified Data.List.NonEmpty                    as NE
+import qualified Data.Text                             as T
+import qualified Data.Text.Encoding                    as T
+import qualified Network.Connection                    as NC
+import qualified Network.HTTP.Client                   as L
+import qualified Network.HTTP.Client.Internal          as LI
+import qualified Network.HTTP.Client.TLS               as L
+import qualified Network.HTTP.Client.MultipartFormData as Form
+import qualified Network.HTTP.Types                    as Y
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Kind (Constraint)
@@ -386,27 +396,103 @@ req
   -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
 req method url body Proxy options = do
+  let request config = mkRequest options config body url method
+  doRequest (return . request)
+
+-- | Like 'req', but the body is Multipart Form Data
+--
+-- Use it with the many part* functions,
+-- such as 'Form.partBS', 'partText', 'Form.partFile', etc
+-- to send a request with a multipart body.
+--
+-- ==== __Example__
+--
+-- > main :: IO ()
+-- > main = do
+-- >   response <-
+-- >     reqWithMultipartFormData
+-- >       POST
+-- >       "http://example.com/post"
+-- >       [ partBS "title" "Bleaurgh"
+-- >       , partText "text" "矢田矢田矢田矢田矢田"
+-- >       , partFileSource "file1" "/home/friedrich/Photos/MyLittlePony.jpg"
+-- >       ]
+-- >       bsResponse
+-- >       mempty
+-- >   print $ responseBody response
+--
+
+reqWithMultipartFormData
+  :: forall m method response scheme.
+     ( MonadHttp    m
+     , HttpMethod   method
+     , HttpResponse response
+     , HttpBodyAllowed (AllowsBody method) 'CanHaveBody )
+  => method            -- ^ HTTP method
+  -> Url scheme        -- ^ 'Url' — location of resource
+  -> [Form.Part]       -- ^ Parts
+  -> Proxy response    -- ^ A hint how to interpret response
+  -> Option scheme     -- ^ Collection of optional parameters
+  -> m response        -- ^ Response
+reqWithMultipartFormData method url parts Proxy options = do
+  let request config =
+        Form.formDataBody
+          parts
+          (mkRequest options config NoReqBody url method)
+  doRequest request
+
+
+-- | Make a 'Part' whose content is a strict 'T.Text', encoded as UTF-8.
+--
+-- The 'Part' does not have a file name or content type associated with it.
+partText :: T.Text             -- ^ Name of the corresponding \<input\>.
+         -> T.Text             -- ^ The body for this 'Form.Part'.
+         -> Form.Part
+partText name value = Form.partBS name $ T.encodeUtf8 value
+
+
+doRequest
+  :: forall m response.
+     ( MonadHttp    m
+     , HttpResponse response )
+  => (HttpConfig -> m L.Request)
+  -> m response
+doRequest mkReq = do
   config  <- getHttpConfig
   manager <- liftIO (readIORef globalManager)
-  let -- NOTE First appearance of any given header wins. This allows to
-      -- “overwrite” headers when we construct a request by cons-ing.
-      nubHeaders = Endo $ \x ->
-        x { L.requestHeaders = nubBy ((==) `on` fst) (L.requestHeaders x) }
-      request = flip appEndo L.defaultRequest $
-      -- NOTE Order of 'mappend's matters, here method is overwritten first
-      -- and 'options' take effect last. In particular, this means that
-      -- 'options' can overwrite things set by other request components,
-      -- which is useful for setting port number, "Content-Type" header,
-      -- etc.
-        nubHeaders                                        <>
-        getRequestMod options                             <>
-        getRequestMod config                              <>
-        getRequestMod (Womb body   :: Womb "body"   body) <>
-        getRequestMod url                                 <>
-        getRequestMod (Womb method :: Womb "method" method)
-      wrappingVanilla m = catch m (throwIO . VanillaHttpException)
+  request <- mkReq config
+  let wrappingVanilla m = catch m (throwIO . VanillaHttpException)
   (liftIO . try . wrappingVanilla) (getHttpResponse request manager)
     >>= either handleHttpException return
+
+mkRequest
+  :: forall method body scheme.
+     ( HttpMethod   method
+     , HttpBody     body )
+  => Option scheme
+  -> HttpConfig
+  -> body
+  -> Url scheme
+  -> method
+  -> LI.Request
+mkRequest options config body url method =
+  -- NOTE First appearance of any given header wins. This allows to
+  -- “overwrite” headers when we construct a request by cons-ing.
+  flip appEndo L.defaultRequest $
+    -- NOTE Order of 'mappend's matters, here method is overwritten first
+    -- and 'options' take effect last. In particular, this means that
+    -- 'options' can overwrite things set by other request components,
+    -- which is useful for setting port number, "Content-Type" header,
+    -- etc.
+    nubHeaders                                        <>
+    getRequestMod options                             <>
+    getRequestMod config                              <>
+    getRequestMod (Womb body   :: Womb "body"   body) <>
+    getRequestMod url                                 <>
+    getRequestMod (Womb method :: Womb "method" method)
+ where
+  nubHeaders = Endo $ \x ->
+    x { L.requestHeaders = nubBy ((==) `on` fst) (L.requestHeaders x) }
 
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
 -- settings, so users don't need to deal with this manager stuff at all, but
