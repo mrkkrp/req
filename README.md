@@ -13,6 +13,36 @@
 * [Contribution](#contribution)
 * [License](#license)
 
+```haskell
+{-# LANGUAGE OverloadedStrings    #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module Main (main) where
+
+import Control.Exception (throwIO)
+import Network.HTTP.Req
+import Data.Aeson
+
+-- Just make your monad stack an instance of MonadHttp in your application
+-- and start making requests, enjoy automatic connection sharing.
+
+instance MonadHttp IO where
+  handleHttpException = throwIO
+
+main :: IO ()
+main = do
+  let payload = object
+        [ "foo" .= (10 :: Int)
+        , "bar" .= (20 :: Int) ]
+  -- One function, full power and flexibility.
+  r <- req POST -- method
+    (https "httpbin.org" /: "post") -- safe by construction URL
+    (ReqBodyJson payload) -- use built-in options or add your own
+    jsonResponse -- specify how to interpret response
+    mempty       -- query params, headers, explicit port number, etc.
+  print (responseBody r :: Value)
+```
+
 This is an easy-to-use, type-safe, expandable, high-level HTTP library that
 just works without any fooling around.
 
