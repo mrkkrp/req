@@ -2,7 +2,7 @@
 -- Tests for ‘req’ package. This test suite tests sending actual requests
 -- using the <https://httpbin.org> service.
 --
--- Copyright © 2016 Mark Karpov <markkarpov@openmailbox.org>
+-- Copyright © 2016–2017 Mark Karpov <markkarpov@openmailbox.org>
 --
 -- Redistribution and use in source and binary forms, with or without
 -- modification, are permitted provided that the following conditions are
