@@ -170,6 +170,7 @@ module Network.HTTP.Req
     -- *** Authentication
     -- $authentication
   , basicAuth
+  , oAuth1
   , oAuth2Bearer
   , oAuth2Token
     -- *** Other
@@ -218,6 +219,7 @@ import Data.Function (on)
 import Data.IORef
 import Data.List (nubBy)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Maybe (fromMaybe)
 import Data.Proxy
 import Data.Semigroup hiding (Option, option)
 import Data.Typeable (Typeable)
@@ -239,6 +241,7 @@ import qualified Network.HTTP.Client.Internal as LI
 import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Client.TLS      as L
 import qualified Network.HTTP.Types           as Y
+import qualified Web.Authenticate.OAuth       as OAuth
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Kind (Constraint)
@@ -395,7 +398,7 @@ req method url body Proxy options = do
       -- “overwrite” headers when we construct a request by cons-ing.
       nubHeaders = Endo $ \x ->
         x { L.requestHeaders = nubBy ((==) `on` fst) (L.requestHeaders x) }
-      request = flip appEndo L.defaultRequest $
+      request' = flip appEndo L.defaultRequest $
       -- NOTE Order of 'mappend's matters, here method is overwritten first
       -- and 'options' take effect last. In particular, this means that
       -- 'options' can overwrite things set by other request components,
@@ -408,6 +411,7 @@ req method url body Proxy options = do
         getRequestMod url                                 <>
         getRequestMod (Womb method :: Womb "method" method)
       wrappingVanilla m = catch m (throwIO . VanillaHttpException)
+  request <- finalizeRequest options request'
   (liftIO . try . wrappingVanilla) (getHttpResponse request manager)
     >>= either handleHttpException return
 
@@ -928,7 +932,7 @@ instance HttpBody body => RequestComponent (Womb "body" body) where
 -- to learn which 'Option' primitives are available.
 
 data Option (scheme :: Scheme) =
-  Option (Endo (Y.QueryText, L.Request)) (Maybe (Endo L.Request))
+  Option (Endo (Y.QueryText, L.Request)) (Maybe (L.Request -> IO L.Request))
   -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
   -- Request to avoid appending to existing query string in request every
   -- time new parameter is added. Additional Maybe (Endo Request) is a
@@ -958,14 +962,20 @@ withRequest f = Option (Endo (second f)) Nothing
 -- | A helper to create an 'Option' that adds a finalizer (request
 -- endomorphism that is run after all other modifications).
 
-asFinalizer :: (L.Request -> L.Request) -> Option scheme
-asFinalizer f = Option mempty (Just (Endo f))
+asFinalizer :: (L.Request -> IO L.Request) -> Option scheme
+asFinalizer = Option mempty . pure
 
 instance RequestComponent (Option scheme) where
-  getRequestMod (Option f finalizer) = Endo $ \x ->
+  getRequestMod (Option f _) = Endo $ \x ->
     let (qparams, x') = appEndo f ([], x)
         query         = Y.renderQuery True (Y.queryTextToQuery qparams)
-    in maybe id appEndo finalizer x' { L.queryString = query }
+    in x' { L.queryString = query }
+
+-- | Finalize given 'L.Request' by applying a finalizer from given 'Option'
+-- (if it has any).
+
+finalizeRequest :: MonadIO m => Option scheme -> L.Request -> m L.Request
+finalizeRequest (Option _ mfinalizer) = liftIO . fromMaybe pure mfinalizer
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Query Parameters
@@ -1076,7 +1086,25 @@ basicAuth
   -> ByteString        -- ^ Password
   -> Option 'Https     -- ^ Auth 'Option'
 basicAuth username password = asFinalizer
-  (L.applyBasicAuth username password)
+  (pure . L.applyBasicAuth username password)
+
+-- | The 'Option' adds OAuth1 authentication.
+--
+-- @since 0.2.0
+
+oAuth1
+  :: ByteString        -- ^ Consumer token
+  -> ByteString        -- ^ Consumer secret
+  -> ByteString        -- ^ OAuth token
+  -> ByteString        -- ^ OAuth token secret
+  -> Option scheme     -- ^ Auth 'Option'
+oAuth1 consumerToken consumerSecret token tokenSecret =
+  asFinalizer (OAuth.signOAuth app creds)
+  where
+    app = OAuth.newOAuth
+      { OAuth.oauthConsumerKey    = consumerToken
+      , OAuth.oauthConsumerSecret = consumerSecret }
+    creds = OAuth.newCredential token tokenSecret
 
 -- | The 'Option' adds an OAuth2 bearer token. This is treated by many
 -- services as the equivalent of a username and password.
@@ -1091,7 +1119,7 @@ oAuth2Bearer
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
 oAuth2Bearer token = asFinalizer
-  (attachHeader "Authorization" ("Bearer " <> token))
+  (pure . attachHeader "Authorization" ("Bearer " <> token))
 
 -- | The 'Option' adds a not-quite-standard OAuth2 bearer token (that seems
 -- to be used only by GitHub). This will be treated by whatever services
@@ -1107,7 +1135,7 @@ oAuth2Token
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
 oAuth2Token token = asFinalizer
-  (attachHeader "Authorization" ("token " <> token))
+  (pure . attachHeader "Authorization" ("token " <> token))
 
 ----------------------------------------------------------------------------
 -- Request — Optional parameters — Other
