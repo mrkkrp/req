@@ -149,6 +149,8 @@ module Network.HTTP.Req
   , ReqBodyLbs (..)
   , ReqBodyUrlEnc (..)
   , FormUrlEncodedParam
+  , ReqBodyMultipart
+  , reqBodyMultipart
   , HttpBody (..)
   , ProvidesBody
   , HttpBodyAllowed
@@ -234,6 +236,7 @@ import qualified Data.Text.Encoding           as T
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
 import qualified Network.HTTP.Client.Internal as LI
+import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Client.TLS      as L
 import qualified Network.HTTP.Types           as Y
 
@@ -777,7 +780,7 @@ newtype ReqBodyJson a = ReqBodyJson a
 
 instance ToJSON a => HttpBody (ReqBodyJson a) where
   getRequestBody (ReqBodyJson a) = L.RequestBodyLBS (A.encode a)
-  getRequestContentType Proxy = pure "application/json; charset=utf-8"
+  getRequestContentType _ = pure "application/json; charset=utf-8"
 
 -- | This body option streams request body from a file. It is expected that
 -- the file size does not change during the streaming.
@@ -823,7 +826,7 @@ newtype ReqBodyUrlEnc = ReqBodyUrlEnc FormUrlEncodedParam
 instance HttpBody ReqBodyUrlEnc where
   getRequestBody (ReqBodyUrlEnc (FormUrlEncodedParam params)) =
     (L.RequestBodyLBS . BB.toLazyByteString) (Y.renderQueryText False params)
-  getRequestContentType Proxy = pure "application/x-www-form-urlencoded"
+  getRequestContentType _ = pure "application/x-www-form-urlencoded"
 
 -- | An opaque monoidal value that allows to collect URL-encoded parameters
 -- to be wrapped in 'ReqBodyUrlEnc'.
@@ -834,6 +837,27 @@ newtype FormUrlEncodedParam = FormUrlEncodedParam [(T.Text, Maybe T.Text)]
 instance QueryParam FormUrlEncodedParam where
   queryParam name mvalue =
     FormUrlEncodedParam [(name, toQueryParam <$> mvalue)]
+
+-- | Multipart form data. Please consult the
+-- "Network.HTTP.Client.MultipartFormData" module for how to construct
+-- parts, then use 'reqBodyMultipart' to create actual request body from the
+-- parts. 'reqBodyMultipart' is the only way to get a value of type
+-- 'ReqBodyMultipart', as its constructor is not exported on purpose.
+
+data ReqBodyMultipart = ReqBodyMultipart ByteString LI.RequestBody
+
+instance HttpBody ReqBodyMultipart where
+  getRequestBody (ReqBodyMultipart _ body) = body
+  getRequestContentType (ReqBodyMultipart boundary _) =
+    pure ("multipart/form-data; boundary=" <> boundary)
+
+-- | Create 'ReqBodyMultipart' request body from a collection of 'LM.Part's.
+
+reqBodyMultipart :: MonadIO m => [LM.Part] -> m ReqBodyMultipart
+reqBodyMultipart parts = liftIO $ do
+  boundary <- LM.webkitBoundary
+  body     <- LM.renderParts boundary parts
+  return (ReqBodyMultipart boundary body)
 
 -- | A type class for things that can be interpreted as HTTP
 -- 'L.RequestBody'.
@@ -850,8 +874,8 @@ class HttpBody body where
   -- header that should be used with particular body option. By default it
   -- returns 'Nothing' and so @Content-Type@ is not set.
 
-  getRequestContentType :: Proxy body -> Maybe ByteString
-  getRequestContentType Proxy = Nothing
+  getRequestContentType :: body -> Maybe ByteString
+  getRequestContentType = const Nothing
 
 -- | The type function recognizes 'NoReqBody' as having 'NoBody', while any
 -- other body option 'CanHaveBody'. This forces user to use 'NoReqBody' with
@@ -883,7 +907,7 @@ instance HttpBody body => RequestComponent (Womb "body" body) where
     x { L.requestBody = getRequestBody body
       , L.requestHeaders =
         let old = L.requestHeaders x in
-          case getRequestContentType (Proxy :: Proxy body) of
+          case getRequestContentType body of
             Nothing -> old
             Just contentType ->
               (Y.hContentType, contentType) : old }
