@@ -60,6 +60,7 @@ import qualified Data.Text            as T
 import qualified Data.Text.Encoding   as T
 import qualified Data.Text.IO         as TIO
 import qualified Network.HTTP.Client  as L
+import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Types   as Y
 
 #if !MIN_VERSION_base(4,8,0)
@@ -139,6 +140,33 @@ spec = do
           , "Content-Length" .= show (T.length reflected) ]
         , "files" .= emptyObject
         , "form"  .= emptyObject ]
+      responseHeader r "Content-Type" `shouldBe` return "application/json"
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
+
+  describe "receiving POST data back (multipart form data)" $
+    it "works" $ do
+      body <- reqBodyMultipart
+        [ LM.partBS "foo" "foo data!"
+        , LM.partBS "bar" "bar data!" ]
+      r <- req POST (httpbin /: "post") body jsonResponse mempty
+      let Just contentType = getRequestContentType body
+      stripOrigin (responseBody r) `shouldBe` object
+        [ "args"  .= emptyObject
+        , "json"  .= Null
+        , "data"  .= ("" :: Text)
+        , "url"   .= ("https://httpbin.org/post" :: Text)
+        , "headers" .= object
+          [ "Content-Type"    .= T.decodeUtf8 contentType
+          , "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Host"            .= ("httpbin.org" :: Text)
+          , "Content-Length"  .= ("242" :: Text)
+          ]
+        , "files" .= emptyObject
+        , "form"  .= object
+          [ "foo" .= ("foo data!" :: Text)
+          , "bar" .= ("bar data!" :: Text) ]
+        ]
       responseHeader r "Content-Type" `shouldBe` return "application/json"
       responseStatusCode    r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
