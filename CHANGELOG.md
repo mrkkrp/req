@@ -7,6 +7,8 @@
   into `Content-Type` header. This change, however, shouldn't be too
   dangerous for end-users.
 
+* Added support for OAuth 1.0 authentication via `oAuth1` option.
+
 ## Req 0.1.0
 
 * Initial release.

@@ -59,6 +59,7 @@ flag dev
 
 library
   build-depends:      aeson            >= 0.9    && < 1.2
+                    , authenticate-oauth >= 1.5  && < 1.7
                     , base             >= 4.7    && < 5.0
                     , blaze-builder    >= 0.3    && < 0.5
                     , bytestring       >= 0.10.8 && < 0.11
