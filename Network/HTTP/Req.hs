@@ -847,6 +847,8 @@ instance QueryParam FormUrlEncodedParam where
 -- parts, then use 'reqBodyMultipart' to create actual request body from the
 -- parts. 'reqBodyMultipart' is the only way to get a value of type
 -- 'ReqBodyMultipart', as its constructor is not exported on purpose.
+--
+-- @since 0.2.0
 
 data ReqBodyMultipart = ReqBodyMultipart ByteString LI.RequestBody
 
@@ -856,6 +858,8 @@ instance HttpBody ReqBodyMultipart where
     pure ("multipart/form-data; boundary=" <> boundary)
 
 -- | Create 'ReqBodyMultipart' request body from a collection of 'LM.Part's.
+--
+-- @since 0.2.0
 
 reqBodyMultipart :: MonadIO m => [LM.Part] -> m ReqBodyMultipart
 reqBodyMultipart parts = liftIO $ do
