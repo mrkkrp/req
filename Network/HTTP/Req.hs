@@ -18,62 +18,62 @@
 --
 -- === About the library
 --
--- This is an easy-to-use, type-safe, expandable, high-level HTTP library
+-- Req is an easy-to-use, type-safe, expandable, high-level HTTP library
 -- that just works without any fooling around.
 --
 -- What does the “easy-to-use” phrase mean? It means that the library is
 -- designed to be beginner-friendly, so it's simple to add it to your monad
 -- stack, intuitive to work with, well-documented, and does not get in your
--- way. Doing HTTP requests is a common task and Haskell library for this
+-- way. Doing HTTP requests is a common task and a Haskell library for this
 -- should be very approachable and clear to beginners, thus certain
 -- compromises were made. For example, one cannot currently modify
--- 'L.ManagerSettings' of default manager because the library always uses
+-- 'L.ManagerSettings' of the default manager because the library always uses
 -- the same implicit global manager for simplicity and maximal connection
 -- sharing. There is a way to use your own manager with different settings,
 -- but it requires a bit more typing.
 --
 -- “Type-safe” means that the library is protective and eliminates certain
--- class of errors. For example, we have correct-by-construction 'Url's,
--- it's guaranteed that user does not send request body when using methods
--- like 'GET' or 'OPTIONS', amount of implicit assumptions is minimized by
--- making user specify his\/her intentions in explicit form (for example,
--- it's not possible to avoid specifying body or method of a request).
--- Authentication methods that assume TLS force user to use TLS on type
--- level. The library carefully hides underlying types from lower-level
--- @http-client@ package because it's not safe enough (for example
--- 'L.Request' is an instance of 'Data.String.IsString' and if it's
+-- classes of errors. For example, we have correct-by-construction 'Url's,
+-- guarantees that the user does not send the request body when using methods
+-- like 'GET' or 'OPTIONS', and the amount of implicit assumptions is minimized 
+-- by making the user specify his\/her intentions in an explicit form (for example,
+-- it's not possible to avoid specifying the body or method of a request).
+-- Authentication methods that assume TLS force the user to use TLS at the type
+-- level. The library carefully hides underlying types from the lower-level
+-- @http-client@ package because those types are not safe enough (for example
+-- 'L.Request' is an instance of 'Data.String.IsString' and, if it's
 -- malformed, it will blow up at run-time).
 --
--- “Expandable” refers to the ability of the library to be expanded without
--- ugly hacking. For example, it's possible to define your own HTTP methods,
--- new ways to construct body of request, new authorization options, new
--- ways to actually perform request and how to represent\/parse response. As
--- user extends the library to satisfy his\/her special needs, the new
--- solutions work just like built-ins. That said, all common cases are
--- covered by the library out-of-the-box.
+-- “Expandable” refers to the ability to create new components for dealing with HTTP without
+-- having to resort to ugly hacking. For example, it's possible to define your own
+-- HTTP methods, create new ways to construct the body of a request, create new authorization options,
+-- perform a request in a different way, and create your own methods to parse and represent a response
+-- As a user extends the library to satisfy his/her special needs, the new solutions will work
+-- just like the built-ins. However, all of the common cases are also covered by the library
+-- out-of-the-box.
 --
--- “High-level” means that there are less details to worry about. The
--- library is a result of my experiences as a Haskell consultant, working
--- for several clients who have very different projects and so the library
--- adapts easily to any particular style of writing Haskell applications.
--- For example, some people prefer throwing exceptions, while others are
--- concerned with purity: just define 'handleHttpException' accordingly when
--- making your monad instance of 'MonadHttp' and it will play seamlessly.
--- Finally, the library cuts boilerplate considerably and helps write
--- concise, easy to read and maintain code.
+-- “High-level” means that there are less details to worry about. The library
+-- is a result of my experiences as a Haskell consultant. Working for several
+-- clients, who had very different projects, showed me that the library should adapt easily to
+-- any particular style of writing Haskell applications. For example, some
+-- people prefer throwing exceptions, while others are concerned with purity:
+-- just define `handleHttpException` accordingly when making your monad
+-- instance of `MonadHttp` and it will play together seamlessly. Finally, the library
+-- cuts boilerplate down considerably, and helps you write concise, easy to read, and
+-- maintainable code.
 --
 -- === Using with other libraries
 --
---     * You won't need low-level interface of @http-client@ most of the
---       time, but when you do, it's better import it qualified because it
+--     * You won't need the low-level interface of @http-client@ most of the
+--       time, but when you do, it's better import and qualify it because @http-client@
 --       has naming conflicts with @req@.
---     * For streaming of large request bodies see companion package
+--     * For streaming of large request bodies see the companion package
 --       @req-conduit@: <https://hackage.haskell.org/package/req-conduit>.
 --
 -- === Lightweight, no risk solution
 --
--- The library uses the following mature packages under the hood to
--- guarantee you best experience without bugs or other funny business:
+-- The library uses the following mature packages under the hood to guarantee
+-- you the best experience that doesn't have any bugs or other funny business:
 --
 --     * <https://hackage.haskell.org/package/http-client> — low level HTTP
 --       client used everywhere in Haskell.
@@ -81,9 +81,9 @@
 --       support for @http-client@.
 --
 -- It's important to note that since we leverage well-known libraries that
--- the whole Haskell ecosystem uses, there is no risk in using @req@, as the
+-- the whole Haskell ecosystem uses, there is no risk in using @req@. The
 -- machinery for performing requests is the same as with @http-conduit@ and
--- @wreq@, it's just the API is different.
+-- @wreq@. The only difference is the API.
 
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
