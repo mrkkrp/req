@@ -7,11 +7,11 @@
 -- Stability   :  experimental
 -- Portability :  portable
 --
--- The documentation below is structured in such a way that most important
--- information goes first: you learn how to do HTTP requests, then how to
--- embed them in any monad you have, then it goes on giving you details
+-- The documentation below is structured in such a way that the most important
+-- information is presented first: you learn how to do HTTP requests, how to
+-- embed them in any monad you have, and then it gives you details
 -- about less-common things you may want to know about. The documentation is
--- written with sufficient coverage of details and examples, it's designed
+-- written with sufficient coverage of details and examples, and it's designed
 -- to be a complete tutorial on its own.
 --
 -- /(A modest intro goes here, click on 'req' to start making requests.)/
@@ -22,7 +22,7 @@
 -- that just works without any fooling around.
 --
 -- What does the phrase “easy-to-use” mean? It means that the library is
--- designed to be beginner-friendly, so it's simple to add to your monad
+-- designed to be beginner-friendly so it's simple to add to your monad
 -- stack, intuitive to work with, well-documented, and does not get in your
 -- way. Doing HTTP requests is a common task and a Haskell library for this
 -- should be very approachable and clear to beginners, thus certain
@@ -39,7 +39,7 @@
 -- by making the user specify his\/her intentions in an explicit form (for example,
 -- it's not possible to avoid specifying the body or method of a request).
 -- Authentication methods that assume TLS force the user to use TLS at the type
--- level. The library carefully hides underlying types from the lower-level
+-- level. The library also carefully hides underlying types from the lower-level
 -- @http-client@ package because those types are not safe enough (for example
 -- 'L.Request' is an instance of 'Data.String.IsString' and, if it's
 -- malformed, it will blow up at run-time).
@@ -47,7 +47,7 @@
 -- “Expandable” refers to the ability to create new components for dealing with HTTP without
 -- having to resort to ugly hacking. For example, it's possible to define your own
 -- HTTP methods, create new ways to construct the body of a request, create new authorization options,
--- perform a request in a different way, and create your own methods to parse and represent a response
+-- perform a request in a different way, and create your own methods to parse and represent a response.
 -- As a user extends the library to satisfy his/her special needs, the new solutions will work
 -- just like the built-ins. However, all of the common cases are also covered by the library
 -- out-of-the-box.
@@ -56,8 +56,8 @@
 -- is a result of my experiences as a Haskell consultant. Working for several
 -- clients, who had very different projects, showed me that the library should adapt easily to
 -- any particular style of writing Haskell applications. For example, some
--- people prefer throwing exceptions, while others are concerned with purity:
--- just define `handleHttpException` accordingly when making your monad
+-- people prefer throwing exceptions, while others are concerned with purity.
+-- Just define `handleHttpException` accordingly when making your monad
 -- instance of `MonadHttp` and it will play together seamlessly. Finally, the library
 -- cuts boilerplate down considerably, and helps you write concise, easy to read, and
 -- maintainable code.
@@ -65,7 +65,7 @@
 -- === Using with other libraries
 --
 --     * You won't need the low-level interface of @http-client@ most of the
---       time, but when you do, it's better import and qualify it because @http-client@
+--       time, but when you do, it's better to  import and qualify it because @http-client@
 --       has naming conflicts with @req@.
 --     * For streaming of large request bodies see the companion package
 --       @req-conduit@: <https://hackage.haskell.org/package/req-conduit>.
