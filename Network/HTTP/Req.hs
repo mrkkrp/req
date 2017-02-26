@@ -849,6 +849,29 @@ instance QueryParam FormUrlEncodedParam where
 -- 'ReqBodyMultipart', as its constructor is not exported on purpose.
 --
 -- @since 0.2.0
+--
+-- ==== __Example__
+--
+-- > import Control.Exception (throwIO)
+-- > import qualified Network.HTTP.Client.MultipartFormData as LM
+-- > import Network.HTTP.Req
+-- >
+-- > instance MonadHttp IO where
+-- >   handleHttpException = throwIO
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   body <-
+-- >     reqBodyMultipart
+-- >       [ LM.partBS "title" "My Image"
+-- >       , LM.partFileSource "file1" "/tmp/image.jpg"
+-- >       ]
+-- >   response <-
+-- >     req POST (http "example.com" /: "post")
+-- >       body
+-- >       bsResponse
+-- >       mempty
+-- >   print $ responseBody response
 
 data ReqBodyMultipart = ReqBodyMultipart ByteString LI.RequestBody
 
