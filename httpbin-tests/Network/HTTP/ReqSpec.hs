@@ -101,9 +101,10 @@ spec = do
     it "works" $ do
       r <- req GET (httpbin /: "headers")
         NoReqBody jsonResponse (header "Foo" "bar" <> header "Baz" "quux")
-      responseBody          r `shouldBe` object
+      stripFunnyHeaders (responseBody r) `shouldBe` object
         [ "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
+          , "Connection"      .= ("close"       :: Text)
           , "Foo"             .= ("bar"         :: Text)
           , "Baz"             .= ("quux"        :: Text)
           , "Host"            .= ("httpbin.org" :: Text) ] ]
@@ -113,11 +114,12 @@ spec = do
   describe "receiving GET data back" $
     it "works" $ do
       r <- req GET (httpbin /: "get") NoReqBody jsonResponse mempty
-      stripOrigin (responseBody r) `shouldBe` object
+      (stripFunnyHeaders . stripOrigin) (responseBody r) `shouldBe` object
         [ "args" .= emptyObject
         , "url"  .= ("https://httpbin.org/get" :: Text)
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
+          , "Connection"      .= ("close"       :: Text)
           , "Host"            .= ("httpbin.org" :: Text) ] ]
       responseHeader r "Content-Type" `shouldBe` return "application/json"
       responseStatusCode    r `shouldBe` 200
@@ -128,7 +130,7 @@ spec = do
       let text = "foo" :: Text
           reflected = reflectJSON text
       r <- req POST (httpbin /: "post") (ReqBodyJson text) jsonResponse mempty
-      stripOrigin (responseBody r) `shouldBe` object
+      (stripFunnyHeaders . stripOrigin) (responseBody r) `shouldBe` object
         [ "args"  .= emptyObject
         , "json"  .= text
         , "data"  .= reflected
@@ -136,6 +138,7 @@ spec = do
         , "headers" .= object
           [ "Content-Type"   .= ("application/json; charset=utf-8" :: Text)
           , "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Connection"      .= ("close"      :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
           , "Content-Length" .= show (T.length reflected) ]
         , "files" .= emptyObject
@@ -151,7 +154,7 @@ spec = do
         , LM.partBS "bar" "bar data!" ]
       r <- req POST (httpbin /: "post") body jsonResponse mempty
       let Just contentType = getRequestContentType body
-      stripOrigin (responseBody r) `shouldBe` object
+      (stripFunnyHeaders . stripOrigin) (responseBody r) `shouldBe` object
         [ "args"  .= emptyObject
         , "json"  .= Null
         , "data"  .= ("" :: Text)
@@ -159,6 +162,7 @@ spec = do
         , "headers" .= object
           [ "Content-Type"    .= T.decodeUtf8 contentType
           , "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Connection"      .= ("close"      :: Text)
           , "Host"            .= ("httpbin.org" :: Text)
           , "Content-Length"  .= ("242" :: Text)
           ]
@@ -177,13 +181,14 @@ spec = do
           file = "httpbin-data/robots.txt"
       contents <- TIO.readFile file
       r <- req PATCH (httpbin /: "patch") (ReqBodyFile file) jsonResponse mempty
-      stripOrigin (responseBody r) `shouldBe` object
+      (stripFunnyHeaders . stripOrigin) (responseBody r) `shouldBe` object
         [ "args"  .= emptyObject
         , "json"  .= Null
         , "data"  .= contents
         , "url"   .= ("https://httpbin.org/patch" :: Text)
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Connection"      .= ("close"      :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
           , "Content-Length" .= show (T.length contents) ]
         , "files" .= emptyObject
@@ -198,7 +203,7 @@ spec = do
             "baz" =: (5 :: Int) <>
             queryFlag "quux"
       r <- req PUT (httpbin /: "put") (ReqBodyUrlEnc params) jsonResponse mempty
-      stripOrigin (responseBody r) `shouldBe` object
+      (stripFunnyHeaders . stripOrigin) (responseBody r) `shouldBe` object
         [ "args"  .= emptyObject
         , "json"  .= Null
         , "data"  .= ("" :: Text)
@@ -206,6 +211,7 @@ spec = do
         , "headers" .= object
           [ "Content-Type"   .= ("application/x-www-form-urlencoded" :: Text)
           , "Accept-Encoding" .= ("gzip"       :: Text)
+          , "Connection"      .= ("close"      :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
           , "Content-Length" .= ("18"          :: Text) ]
         , "files" .= emptyObject
@@ -371,6 +377,22 @@ httpbin = https "httpbin.org"
 stripOrigin :: Value -> Value
 stripOrigin (Object m) = Object (HM.delete "origin" m)
 stripOrigin value      = value
+
+-- | Remove funny headers that might break the tests.
+
+stripFunnyHeaders :: Value -> Value
+stripFunnyHeaders (Object m) =
+  let f (Object p) = Object $ HM.filterWithKey (\k _ -> k `elem` hs) p
+      f value      = value
+      hs = [ "Content-Type"
+           , "Accept-Encoding"
+           , "Connection"
+           , "Host"
+           , "Content-Length"
+           , "Foo"
+           , "Baz" ]
+  in Object (HM.adjust f "headers" m)
+stripFunnyHeaders value = value
 
 -- | This is a complete test case that makes use of <https://httpbin.org> to
 -- get various response status codes.
