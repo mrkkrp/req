@@ -427,7 +427,7 @@ req method url body Proxy options = do
 -- A note about safety, in case 'unsafePerformIO' looks suspicious to you.
 -- The value of 'globalManager' is named and lives on top level. This means
 -- it will be shared, i.e. computed only once on first use of manager. From
--- that moment on the 'IORef' will be just reused — exactly the behaviour we
+-- that moment on the 'IORef' will be just reused — exactly the behavior we
 -- want here in order to maximize connection sharing. GHC could spoil the
 -- plan by inlining the definition, hence the @NOINLINE@ pragma.
 
@@ -924,8 +924,8 @@ type family ProvidesBody body :: CanHaveBody where
 -- 'CanHaveBody'. When method says it should have 'NoBody', the only body
 -- option to use is 'NoReqBody'.
 --
--- __Note__: users of GHC 8.0.1 will see slightly more friendly error
--- messages when method does not allow a body and body is provided.
+-- __Note__: users of GHC 8.0.1 and later will see a slightly more friendly
+-- error message when method does not allow a body and body is provided.
 
 type family HttpBodyAllowed
   (allowsBody   :: CanHaveBody)
@@ -1101,12 +1101,12 @@ cookieJar jar = withRequest $ \x ->
 
 -- $authentication
 --
--- This section provides common authentication helpers in form of 'Option's.
--- You should always prefer the provided authentication 'Option's to manual
--- construction of headers because it ensures that you only use one
--- authentication method at a time (they overwrite each other) and provides
--- additional type safety that prevents leaking of credentials in cases when
--- authentication relies on TLS for encrypting sensitive data.
+-- This section provides the common authentication helpers in the form of
+-- 'Option's. You should always prefer the provided authentication 'Option's
+-- to manual construction of headers because it ensures that you only use
+-- one authentication method at a time (they overwrite each other) and
+-- provides additional type safety that prevents leaking of credentials in
+-- cases when authentication relies on TLS for encrypting sensitive data.
 
 -- | The 'Option' adds basic authentication.
 --
@@ -1172,8 +1172,8 @@ oAuth2Token token = asFinalizer
 -- Request — Optional parameters — Other
 
 -- | Specify the port to connect to explicitly. Normally, 'Url' you use
--- determines default port, @80@ for HTTP and @443@ for HTTPS, this 'Option'
--- allows to choose arbitrary port overwriting the defaults.
+-- determines the default port: @80@ for HTTP and @443@ for HTTPS. This
+-- 'Option' allows to choose arbitrary port overwriting the defaults.
 
 port :: Int -> Option scheme
 port n = withRequest $ \x ->
@@ -1196,8 +1196,8 @@ decompress
 decompress f = withRequest $ \x ->
   x { L.decompress = f }
 
--- | Specify number of microseconds to wait for response. Default is 30
--- seconds.
+-- | Specify number of microseconds to wait for response. The default value
+-- is 30 seconds.
 
 responseTimeout
   :: Int               -- ^ Number of microseconds to wait
@@ -1205,7 +1205,7 @@ responseTimeout
 responseTimeout n = withRequest $ \x ->
   x { L.responseTimeout = LI.ResponseTimeoutMicro n }
 
--- | HTTP version to send to server, default is HTTP 1.1.
+-- | HTTP version to send to server, the default is HTTP 1.1.
 
 httpVersion
   :: Int               -- ^ Major version number
@@ -1409,12 +1409,12 @@ class RequestComponent a where
 
   getRequestMod :: a -> Endo L.Request
 
--- | This wrapper is only used to attach a type-level tag to given type.
+-- | This wrapper is only used to attach a type-level tag to a given type.
 -- This is necessary to define instances of 'RequestComponent' for any thing
 -- that implements 'HttpMethod' or 'HttpBody'. Without the tag, GHC can't
 -- see the difference between @'HttpMethod' method => 'RequestComponent'
 -- method@ and @'HttpBody' body => 'RequestComponent' body@ when it decides
--- which instance to use (i.e. constraints are taken into account later,
+-- which instance to use (i.e. the constraints are taken into account later,
 -- when instance is already chosen).
 
 newtype Womb (tag :: Symbol) a = Womb a
