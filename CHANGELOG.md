@@ -1,3 +1,7 @@
+## Req 0.3.0
+
+* Improved wording in the documentation and `README.md`.
+
 ## Req 0.2.0
 
 * Added support for multipart form data in form of `ReqBodyMultipart` body
