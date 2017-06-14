@@ -473,8 +473,8 @@ class MonadIO m => MonadHttp m where
   -- | This method describes how to deal with 'HttpException' that was
   -- caught by the library. One option is to re-throw it if you are OK with
   -- exceptions, but if you prefer working with something like
-  -- 'Control.Monad.Error.MonadError', this is the right place to pass it to
-  -- 'Control.Monad.Error.throwError'.
+  -- 'Control.Monad.Except.MonadError', this is the right place to pass it to
+  -- 'Control.Monad.Except.throwError'.
 
   handleHttpException :: HttpException -> m a
 
