@@ -113,28 +113,36 @@ spec = do
       it "does not recognize non-http schemes" $
         parseUrlHttp "https://httpbin.org" `shouldSatisfy` isNothing
       it "parses correct URLs" $
-        property $ \host pieces queryParams ->
-          not (T.null host) && wellFormed queryParams ==> do
+        property $ \host mport' pieces queryParams -> do
           let (url', path, queryString) =
-                assembleUrl Http host pieces queryParams
+                assembleUrl Http host mport' pieces queryParams
               (url'', options) = fromJust (parseUrlHttp url')
           request <- req_ GET url'' NoReqBody options
-          L.host        request `shouldBe` urlEncode host
+          L.host        request `shouldBe` urlEncode (unHost host)
+          L.port        request `shouldBe` maybe 80 getNonNegative mport'
           L.path        request `shouldBe` path
           L.queryString request `shouldBe` queryString
+      it "rejects gibberish in port component" $ do
+        parseUrlHttp "http://my-site.com:bob/far" `shouldSatisfy` isNothing
+        parseUrlHttp "http://my-site.com:7001uh/api" `shouldSatisfy` isNothing
+        parseUrlHttp "http://my-site.com:/bar" `shouldSatisfy` isNothing
     describe "parseUrlHttps" $ do
       it "does not recognize non-https schemes" $
         parseUrlHttps "http://httpbin.org" `shouldSatisfy` isNothing
       it "parses correct URLs" $
-        property $ \host pieces queryParams ->
-          not (T.null host) && wellFormed queryParams ==> do
+        property $ \host mport' pieces queryParams -> do
           let (url', path, queryString) =
-                assembleUrl Https host pieces queryParams
+                assembleUrl Https host mport' pieces queryParams
               (url'', options) = fromJust (parseUrlHttps url')
           request <- req_ GET url'' NoReqBody options
-          L.host        request `shouldBe` urlEncode host
+          L.host        request `shouldBe` urlEncode (unHost host)
+          L.port        request `shouldBe` maybe 443 getNonNegative mport'
           L.path        request `shouldBe` path
           L.queryString request `shouldBe` queryString
+      it "rejects gibberish in port component" $ do
+        parseUrlHttp "https://my-site.com:bob/far" `shouldSatisfy` isNothing
+        parseUrlHttp "https://my-site.com:7001uh/api" `shouldSatisfy` isNothing
+        parseUrlHttp "https://my-site.com:/bar" `shouldSatisfy` isNothing
 
   describe "bodies" $ do
     describe "NoReqBody" $
@@ -360,6 +368,27 @@ instance Arbitrary DiffTime where
   arbitrary = secondsToDiffTime <$> arbitrary
 
 ----------------------------------------------------------------------------
+-- Helper types
+
+-- | A wrapper to generate correct hosts.
+
+newtype Host = Host { unHost :: Text }
+  deriving (Eq, Show)
+
+instance Arbitrary Host where
+  arbitrary = Host . T.pack <$> listOf1 (arbitrary `suchThat` (/= ':'))
+
+-- | A wrapper to generate correct query parameters.
+
+newtype QueryParams = QueryParams [(Text, Maybe Text)]
+  deriving (Eq, Show)
+
+instance Arbitrary QueryParams where
+  arbitrary = QueryParams <$> (arbitrary `suchThat` wellFormed)
+    where
+      wellFormed = all (not . T.null . fst)
+
+----------------------------------------------------------------------------
 -- Helpers
 
 -- | 'req' that just returns the prepared 'L.Request'.
@@ -392,31 +421,31 @@ urlEncode = Y.urlEncode False . T.encodeUtf8
 encodePathPieces :: [Text] -> ByteString
 encodePathPieces = BL.toStrict . BB.toLazyByteString . Y.encodePathSegments
 
--- | Assemble entire URL.
+-- | Assemble a URL.
 
 assembleUrl
   :: Scheme            -- ^ Scheme
-  -> Text              -- ^ Host
+  -> Host              -- ^ Host
+  -> Maybe (NonNegative Int) -- ^ Port
   -> [Text]            -- ^ Path pieces
-  -> [(Text, Maybe Text)] -- ^ Query parameters
+  -> QueryParams       -- ^ Query parameters
   -> (ByteString, ByteString, ByteString) -- ^ URL, path, query string
-assembleUrl scheme' host' pathPieces queryParams =
-  (scheme <> host <> path <> queryString, path, queryString)
+assembleUrl scheme' (Host host') mport' pathPieces (QueryParams queryParams) =
+  (scheme <> host <> port' <> path <> queryString, path, queryString)
   where
     scheme = case scheme' of
       Http  -> "http://"
       Https -> "https://"
     host        = urlEncode host'
+    port'       =
+      case mport' of
+        Nothing -> ""
+        Just (NonNegative x) -> ":" <> B8.pack (show x)
     path        = encodePathPieces pathPieces
     queryString = Y.renderQuery True (Y.queryTextToQuery queryParams)
 
 renderQuery :: [(Text, Maybe Text)] -> BL.ByteString
 renderQuery = BL.fromStrict . Y.renderQuery False . Y.queryTextToQuery
-
--- | Check if collection of query params is well-formed.
-
-wellFormed :: [(Text, Maybe Text)] -> Bool
-wellFormed = all (not . T.null . fst)
 
 -- | Convert collection of query parameters to 'FormUrlEncodedParam' thing.
 

@@ -237,7 +237,9 @@ import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
 import qualified Data.CaseInsensitive         as CI
 import qualified Data.List.NonEmpty           as NE
+import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
+import qualified Data.Text.Read               as TR
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
 import qualified Network.HTTP.Client.Internal as LI
@@ -744,8 +746,15 @@ parseUrlHelper :: ByteString -> Maybe (NonEmpty Text, Option scheme)
 parseUrlHelper url = do
   let (path', query') = B.break (== 0x3f) url
       query = mconcat (uncurry queryParam <$> Y.parseQueryText query')
-  path <- NE.nonEmpty (Y.decodePathSegments path')
-  return (path, query)
+  p' :| ps <- NE.nonEmpty (Y.decodePathSegments path')
+  (p, port') <-
+    case T.break (== ':') p' of
+      (x, "") -> return (x, mempty)
+      (x, prt) ->
+        case TR.decimal (T.drop 1 prt) of
+          Right (prt',"") -> return (x, port prt')
+          _               -> Nothing
+  return (p :| ps, query <> port')
 
 instance RequestComponent (Url scheme) where
   getRequestMod (Url scheme segments) = Endo $ \x ->

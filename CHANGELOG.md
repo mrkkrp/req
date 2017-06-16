@@ -1,5 +1,8 @@
 ## Req 0.3.0
 
+* Made URL parsing functions `parseUrlHttp` and `parseUrlHttps` recognize
+  port numbers.
+
 * Improved wording in the documentation and `README.md`.
 
 ## Req 0.2.0
