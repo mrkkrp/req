@@ -96,6 +96,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -214,6 +215,7 @@ import Control.Arrow (first, second)
 import Control.Exception (Exception, try, catch, throwIO)
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Retry
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import Data.ByteString (ByteString)
 import Data.Data (Data)
@@ -401,7 +403,7 @@ req
   -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
 req method url body Proxy options = do
-  config  <- getHttpConfig
+  config@HttpConfig {..}  <- getHttpConfig
   manager <- liftIO (readIORef globalManager)
   let -- NOTE First appearance of any given header wins. This allows to
       -- “overwrite” headers when we construct a request by cons-ing.
@@ -421,7 +423,11 @@ req method url body Proxy options = do
         getRequestMod (Womb method :: Womb "method" method)
       wrappingVanilla m = catch m (throwIO . VanillaHttpException)
   request <- finalizeRequest options request'
-  (liftIO . try . wrappingVanilla) (getHttpResponse request manager)
+  (liftIO . try . wrappingVanilla) (do
+    response <- retrying httpConfigRetryPolicy httpConfigRetryJudge
+      (const $ getHttpResponse request manager)
+    httpConfigCheckResponse request response
+    return response)
     >>= either handleHttpException return
 
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
@@ -505,7 +511,7 @@ data HttpConfig = HttpConfig
     -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
     -- that default implicit manager will be used (that's what you want in
     -- 99% of cases).
-  , httpConfigCheckResponse :: L.Request -> L.Response L.BodyReader -> IO ()
+  , httpConfigCheckResponse :: forall r. HttpResponse r => L.Request -> r -> IO ()
     -- ^ Function to check the response immediately after receiving the
     -- status and headers. This is used for throwing exceptions on
     -- non-success status codes by default (set to @\\_ _ -> return ()@ if
@@ -514,6 +520,18 @@ data HttpConfig = HttpConfig
     -- something is wrong and we need a way to short-cut execution. The
     -- thrown exception is caught by the library though and is available in
     -- 'handleHttpException'.
+    --
+    -- @since 0.3.0
+  , httpConfigRetryPolicy :: RetryPolicyM IO
+    -- ^ The retry policy to use for request retrying. By default 'def' is
+    -- used (see 'RetryPolicyM').
+    --
+    -- @since 0.3.0
+  , httpConfigRetryJudge :: forall r. HttpResponse r => RetryStatus -> r -> IO Bool
+    -- ^ The function is used to decide whether to retry a request. 'True'
+    -- means that the request should be retried.
+    --
+    -- @since 0.3.0
   } deriving Typeable
 
 instance Default HttpConfig where
@@ -522,17 +540,27 @@ instance Default HttpConfig where
     , httpConfigRedirectCount = 10
     , httpConfigAltManager    = Nothing
     , httpConfigCheckResponse = \_ response ->
-        let Y.Status statusCode _ = L.responseStatus response in
+        let statusCode = responseStatusCode response in
           unless (200 <= statusCode && statusCode < 300) $ do
-            chunk <- BL.toStrict <$> L.brReadSome (L.responseBody response) 1024
-            LI.throwHttp (L.StatusCodeException (void response) chunk) }
+            chunk <- makeResponseBodyPreview response
+            let vresponse = toVanillaResponse response
+            LI.throwHttp (L.StatusCodeException (void vresponse) chunk)
+    , httpConfigRetryPolicy  = def
+    , httpConfigRetryJudge   = \_ r -> return $
+        responseStatusCode r `elem`
+          [ 408 -- Request timeout
+          , 504 -- Gateway timeout
+          , 524 -- A timeout occurred
+          , 598 -- (Informal convention) Network read timeout error
+          , 599 -- (Informal convention) Network connect timeout error
+          ]
+    }
 
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->
     x { L.proxy                   = httpConfigProxy
       , L.redirectCount           = httpConfigRedirectCount
-      , LI.requestManagerOverride = httpConfigAltManager
-      , LI.checkResponse          = httpConfigCheckResponse }
+      , LI.requestManagerOverride = httpConfigAltManager }
 
 ----------------------------------------------------------------------------
 -- Request—Method
@@ -1243,6 +1271,7 @@ instance HttpResponse IgnoreResponse where
   toVanillaResponse (IgnoreResponse response) = response
   getHttpResponse request manager =
     IgnoreResponse <$> liftIO (L.httpNoBody request manager)
+  makeResponseBodyPreview _ = return "<ignored response>"
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
 -- return the 'IgnoreResponse' interpretation.
@@ -1255,16 +1284,19 @@ ignoreResponse = Proxy
 -- monad in which you use 'req' will determine what to do in the case when
 -- parsing fails (the 'JsonHttpException' constructor will be used).
 
-newtype JsonResponse a = JsonResponse (L.Response a)
+data JsonResponse a = JsonResponse (L.Response a) ByteString
 
 instance FromJSON a => HttpResponse (JsonResponse a) where
   type HttpResponseBody (JsonResponse a) = a
-  toVanillaResponse (JsonResponse response) = response
+  toVanillaResponse (JsonResponse response _) = response
   getHttpResponse request manager = do
     response <- L.httpLbs request manager
     case A.eitherDecode (L.responseBody response) of
       Left e -> throwIO (JsonHttpException e)
-      Right x -> return $ JsonResponse response { L.responseBody = x }
+      Right x -> do
+        let preview = (BL.toStrict . BL.take 1024 . L.responseBody) response
+        return $ JsonResponse response { L.responseBody = x } preview
+  makeResponseBodyPreview (JsonResponse _ preview) = return preview
 
 -- | Use this as the forth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
@@ -1283,6 +1315,7 @@ instance HttpResponse BsResponse where
     L.withResponse request manager $ \response -> do
       chunks <- L.brConsume (L.responseBody response)
       return $ BsResponse response { L.responseBody = B.concat chunks }
+  makeResponseBodyPreview = return . B.take 1024 . responseBody
 
 -- | Use this as the forth argument of 'req' to specify that you want to
 -- interpret response body as a strict 'ByteString'.
@@ -1300,6 +1333,7 @@ instance HttpResponse LbsResponse where
   toVanillaResponse (LbsResponse response) = response
   getHttpResponse request manager =
     LbsResponse <$> L.httpLbs request manager
+  makeResponseBodyPreview = return . BL.toStrict . BL.take 1027 . responseBody
 
 -- | Use this as the forth argument of 'req' to specify that you want to
 -- interpret response body as a lazy 'BL.ByteString'.
@@ -1321,6 +1355,7 @@ instance HttpResponse ReturnRequest where
   toVanillaResponse (ReturnRequest _) = error
     "Network.HTTP.Req.ReturnRequest interpretation does not make requests"
   getHttpResponse request _ = return (ReturnRequest request)
+  makeResponseBodyPreview _ = return "<response not available>"
 
 -- | Use this as the forth argument of 'req' to specify that you want it to
 -- just return the request it consturcted without making any requests.
@@ -1406,6 +1441,14 @@ class HttpResponse response where
   -- (prepared by the library) and 'L.Manager'.
 
   getHttpResponse :: L.Request -> L.Manager -> IO response
+
+  -- | Construct a “preview” of response body. It is recommend to limit the
+  -- length to 1024 bytes. This is mainly useful for inclusion in
+  -- exceptions.
+  --
+  -- @since 0.3.0
+
+  makeResponseBodyPreview :: response -> IO ByteString
 
 ----------------------------------------------------------------------------
 -- Other

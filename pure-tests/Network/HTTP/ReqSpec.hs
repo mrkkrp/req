@@ -18,8 +18,10 @@ where
 
 import Control.Exception (throwIO)
 import Control.Monad.Reader
+import Control.Retry
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
+import Data.Default.Class
 import Data.Maybe (isNothing, fromJust)
 import Data.Monoid ((<>))
 import Data.Proxy
@@ -305,6 +307,16 @@ instance Arbitrary HttpConfig where
     httpConfigRedirectCount <- arbitrary
     let httpConfigAltManager = Nothing
         httpConfigCheckResponse _ _ = return ()
+        httpConfigRetryPolicy  = def
+        httpConfigRetryJudge :: HttpResponse r => RetryStatus -> r -> IO Bool
+        httpConfigRetryJudge   = \_ r -> return $
+          responseStatusCode r `elem`
+            [ 408 -- Request timeout
+            , 504 -- Gateway timeout
+            , 524 -- A timeout occurred
+            , 598 -- (Informal convention) Network read timeout error
+            , 599 -- (Informal convention) Network connect timeout error
+            ]
     return HttpConfig {..}
 
 instance Show HttpConfig where
