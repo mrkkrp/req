@@ -13,12 +13,14 @@ import Control.Exception (throwIO)
 import Control.Monad.Reader
 import Data.Aeson (Value (..), ToJSON (..), object, (.=))
 import Data.Default.Class
+import Data.IORef
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
 import Network.HTTP.Req
 import Test.Hspec
 import Test.QuickCheck
+import qualified Control.Retry        as R
 import qualified Data.Aeson           as A
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
@@ -204,6 +206,15 @@ spec = do
   -- TODO /gzip
   -- TODO /deflate
 
+  describe "retrying" $
+    it "retries as many times as specified" $ do
+      let status = 408 :: Int
+      nref <- newIORef (0 :: Int)
+      r <- countingRetries nref $ req GET (httpbin /: "status" /~ status)
+        NoReqBody ignoreResponse mempty
+      responseStatusCode r `shouldBe` status
+      readIORef nref `shouldReturn` 6 -- number of retries plus 1
+
   forM_ [101..102] checkStatusCode
   forM_ [200..208] checkStatusCode
   -- forM_ [300..308] checkStatusCode
@@ -320,10 +331,11 @@ instance MonadHttp (ReaderT HttpConfig IO) where
 -- response status codes.
 
 prepareForShit
-  :: (forall m. MonadHttp m => m a)
+  :: ReaderT HttpConfig IO a
   -> IO a
 prepareForShit m = runReaderT m def { httpConfigCheckResponse = noNoise }
-  where noNoise _ _ = return ()
+  where
+    noNoise _ _ = return ()
 
 -- | Run request with such settings that it throws on any response.
 
@@ -331,7 +343,23 @@ blindlyThrowing
   :: ReaderT HttpConfig IO a
   -> IO a
 blindlyThrowing m = runReaderT m def { httpConfigCheckResponse = doit }
-  where doit _ _ = error "Oops!"
+  where
+    doit _ _ = error "Oops!"
+
+-- | Run request with such settings that every retry increments the given
+-- @'IORef' 'Int'@.
+
+countingRetries
+  :: IORef Int
+  -> ReaderT HttpConfig IO a
+  -> IO a
+countingRetries nref m = runReaderT m def
+  { httpConfigCheckResponse = noNoise
+  , httpConfigRetryPolicy   = R.constantDelay 50000 <> R.limitRetries 5
+  , httpConfigRetryJudge    = judge }
+  where
+    noNoise _ _ = return ()
+    judge   _ _ = True <$ modifyIORef nref (+ 1)
 
 -- | 'Url' representing <https://httpbin.org>.
 
