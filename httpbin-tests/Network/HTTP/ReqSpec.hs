@@ -33,6 +33,7 @@ import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Types   as Y
 
 #if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
 import Data.Monoid (mempty)
 import Data.Word (Word)
 #endif
