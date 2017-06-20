@@ -285,10 +285,8 @@ import GHC.Exts (Constraint)
 --     * 'jsonResponse'
 --     * 'bsResponse' (to get a strict 'ByteString')
 --     * 'lbsResponse' (to get a lazy 'BL.ByteString')
---     * 'returnRequest' (makes no request, but returns the constructed
---       request itself, used for testing).
 --
--- Finally @options@ is a 'Monoid' that holds a composite 'Option' for all
+-- Finally, @options@ is a 'Monoid' that holds a composite 'Option' for all
 -- other optional settings like query parameters, headers, non-standard port
 -- number, etc. There are quite a few things you can put there, see the
 -- corresponding section in the documentation. If you don't need anything at
@@ -414,7 +412,8 @@ req method url body Proxy options = req' method url body options $ \request mana
 -- that allows to perform a request in arbitrary fashion.
 --
 -- This function /does not/ perform handling\/wrapping exceptions, checking
--- response, and retrying.
+-- response, and retrying. It only prepares 'L.Request' and allows you to
+-- use it.
 --
 -- @since 0.3.0
 
@@ -497,8 +496,6 @@ withReqManager m = liftIO (readIORef globalManager) >>= m
 -- unless you want to tweak 'HttpConfig'.
 
 class MonadIO m => MonadHttp m where
-
-  {-# MINIMAL handleHttpException #-}
 
   -- | This method describes how to deal with 'HttpException' that was
   -- caught by the library. One option is to re-throw it if you are OK with
