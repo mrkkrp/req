@@ -18,7 +18,6 @@ where
 
 import Control.Exception (throwIO)
 import Control.Monad.Reader
-import Control.Retry
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
 import Data.Default.Class
@@ -308,15 +307,7 @@ instance Arbitrary HttpConfig where
     let httpConfigAltManager = Nothing
         httpConfigCheckResponse _ _ = return ()
         httpConfigRetryPolicy  = def
-        httpConfigRetryJudge :: HttpResponse r => RetryStatus -> r -> IO Bool
-        httpConfigRetryJudge   = \_ r -> return $
-          responseStatusCode r `elem`
-            [ 408 -- Request timeout
-            , 504 -- Gateway timeout
-            , 524 -- A timeout occurred
-            , 598 -- (Informal convention) Network read timeout error
-            , 599 -- (Informal convention) Network connect timeout error
-            ]
+        httpConfigRetryJudge _ _ = return False
     return HttpConfig {..}
 
 instance Show HttpConfig where
@@ -415,8 +406,8 @@ req_
   -> body              -- ^ Body of the request
   -> Option scheme     -- ^ Collection of optional parameters
   -> m L.Request       -- ^ Vanilla request
-req_ method url' body options =
-  responseRequest `liftM` req method url' body returnRequest options
+req_ method url' body options = req' method url' body options $
+  \request _ -> return request
 
 -- | A dummy 'Url'.
 

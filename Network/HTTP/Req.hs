@@ -117,6 +117,7 @@ module Network.HTTP.Req
   ( -- * Making a request
     -- $making-a-request
     req
+  , req'
   , withReqManager
     -- * Embedding requests into your monad
     -- $embedding-requests
@@ -192,15 +193,12 @@ module Network.HTTP.Req
   , bsResponse
   , LbsResponse
   , lbsResponse
-  , ReturnRequest
-  , returnRequest
     -- ** Inspecting a response
   , responseBody
   , responseStatusCode
   , responseStatusMessage
   , responseHeader
   , responseCookieJar
-  , responseRequest
     -- ** Defining your own interpretation
     -- $new-response-interpretation
   , HttpResponse (..)
@@ -212,7 +210,7 @@ where
 
 import Control.Applicative
 import Control.Arrow (first, second)
-import Control.Exception (Exception, try, catch, throwIO)
+import Control.Exception (Exception, try, handle, throwIO)
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Retry
@@ -390,8 +388,7 @@ import GHC.Exts (Constraint)
 -- >   print (responseBody response :: Value)
 
 req
-  :: forall m method body response scheme.
-     ( MonadHttp    m
+  :: ( MonadHttp    m
      , HttpMethod   method
      , HttpBody     body
      , HttpResponse response
@@ -402,7 +399,38 @@ req
   -> Proxy response    -- ^ A hint how to interpret response
   -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
-req method url body Proxy options = do
+req method url body Proxy options = req' method url body options $ \request manager -> do
+  HttpConfig {..}  <- getHttpConfig
+  let wrappingVanilla = handle (throwIO . VanillaHttpException)
+      wrapExc         = handle (throwIO . LI.toHttpException request)
+  (liftIO . try . wrappingVanilla . wrapExc) (do
+    response <- retrying httpConfigRetryPolicy httpConfigRetryJudge
+      (const $ getHttpResponse request manager)
+    httpConfigCheckResponse request response
+    return response)
+    >>= either handleHttpException return
+
+-- | Mostly like 'req' with respect to its arguments, but accepts a callback
+-- that allows to perform a request in arbitrary fashion.
+--
+-- This function /does not/ perform handling\/wrapping exceptions, checking
+-- response, and retrying.
+--
+-- @since 0.3.0
+
+req'
+  :: forall m method body scheme a.
+     ( MonadHttp  m
+     , HttpMethod method
+     , HttpBody   body
+     , HttpBodyAllowed (AllowsBody method) (ProvidesBody body) )
+  => method            -- ^ HTTP method
+  -> Url scheme        -- ^ 'Url'—location of resource
+  -> body              -- ^ Body of the request
+  -> Option scheme     -- ^ Collection of optional parameters
+  -> (L.Request -> L.Manager -> m a) -- ^ How to perform request
+  -> m a
+req' method url body options m = do
   config@HttpConfig {..}  <- getHttpConfig
   manager <- liftIO (readIORef globalManager)
   let -- NOTE First appearance of any given header wins. This allows to
@@ -421,14 +449,8 @@ req method url body Proxy options = do
         getRequestMod (Womb body   :: Womb "body"   body) <>
         getRequestMod url                                 <>
         getRequestMod (Womb method :: Womb "method" method)
-      wrappingVanilla m = catch m (throwIO . VanillaHttpException)
   request <- finalizeRequest options request'
-  (liftIO . try . wrappingVanilla) (do
-    response <- retrying httpConfigRetryPolicy httpConfigRetryJudge
-      (const $ getHttpResponse request manager)
-    httpConfigCheckResponse request response
-    return response)
-    >>= either handleHttpException return
+  m request manager
 
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
 -- settings, so users don't need to deal with this manager stuff at all, but
@@ -1341,28 +1363,6 @@ instance HttpResponse LbsResponse where
 lbsResponse :: Proxy LbsResponse
 lbsResponse = Proxy
 
--- | This interpretation does not result in any request at all, but you can
--- use the 'responseRequest' function to extract 'L.Request' that 'req' has
--- prepared. This is useful primarily for testing.
---
--- Note that when you use this interpretation inspecting response will
--- diverge (i.e. it'll blow up with an error, don't do that).
-
-newtype ReturnRequest = ReturnRequest L.Request
-
-instance HttpResponse ReturnRequest where
-  type HttpResponseBody ReturnRequest = ()
-  toVanillaResponse (ReturnRequest _) = error
-    "Network.HTTP.Req.ReturnRequest interpretation does not make requests"
-  getHttpResponse request _ = return (ReturnRequest request)
-  makeResponseBodyPreview _ = return "<response not available>"
-
--- | Use this as the forth argument of 'req' to specify that you want it to
--- just return the request it consturcted without making any requests.
-
-returnRequest :: Proxy ReturnRequest
-returnRequest = Proxy
-
 ----------------------------------------------------------------------------
 -- Inspecting a response
 
@@ -1409,11 +1409,6 @@ responseCookieJar
   => response
   -> L.CookieJar
 responseCookieJar = L.responseCookieJar . toVanillaResponse
-
--- | Get the original request from 'ReturnRequest' response interpretation.
-
-responseRequest :: ReturnRequest -> L.Request
-responseRequest (ReturnRequest request) = request
 
 ----------------------------------------------------------------------------
 -- Response—Defining your own interpretation

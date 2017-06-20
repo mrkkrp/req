@@ -328,7 +328,7 @@ prepareForShit m = runReaderT m def { httpConfigCheckResponse = noNoise }
 -- | Run request with such settings that it throws on any response.
 
 blindlyThrowing
-  :: (forall m. MonadHttp m => m a)
+  :: ReaderT HttpConfig IO a
   -> IO a
 blindlyThrowing m = runReaderT m def { httpConfigCheckResponse = doit }
   where doit _ _ = error "Oops!"
