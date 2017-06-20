@@ -20,6 +20,7 @@ import Control.Exception (throwIO)
 import Control.Monad.Reader
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
+import Data.Default.Class
 import Data.Maybe (isNothing, fromJust)
 import Data.Monoid ((<>))
 import Data.Proxy
@@ -305,6 +306,8 @@ instance Arbitrary HttpConfig where
     httpConfigRedirectCount <- arbitrary
     let httpConfigAltManager = Nothing
         httpConfigCheckResponse _ _ = return ()
+        httpConfigRetryPolicy  = def
+        httpConfigRetryJudge _ _ = return False
     return HttpConfig {..}
 
 instance Show HttpConfig where
@@ -403,8 +406,8 @@ req_
   -> body              -- ^ Body of the request
   -> Option scheme     -- ^ Collection of optional parameters
   -> m L.Request       -- ^ Vanilla request
-req_ method url' body options =
-  responseRequest `liftM` req method url' body returnRequest options
+req_ method url' body options = req' method url' body options $
+  \request _ -> return request
 
 -- | A dummy 'Url'.
 

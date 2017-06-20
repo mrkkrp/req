@@ -3,6 +3,24 @@
 * Made URL parsing functions `parseUrlHttp` and `parseUrlHttps` recognize
   port numbers.
 
+* Added `req'` function that allows to perform requests via a callback that
+  receives pre-constructed request and manager.
+
+* Removed the `ReturnRequest` HTTP response implementation as it was not
+  quite safe and was not going to work with retrying. Use `req'` instead for
+  “pure” testing.
+
+* Changed the type of `httpConfigCheckResponse`, so the second argument can
+  be any instance of `HttpResponse`.
+
+* Added built-in automatic retrying. See `httpConfigRetryPolicy` and
+  `httpConfigRetryJudge` in `HttpConfig`. The default configuration retries
+  5 times on request timeouts.
+
+* Added the `makeResponseBodyPreview` method to the `HttpResponse` type
+  class that allows to specify how to build a “preview” of response body for
+  inclusion into exceptions.
+
 * Improved wording in the documentation and `README.md`.
 
 ## Req 0.2.0
