@@ -1313,7 +1313,11 @@ instance FromJSON a => HttpResponse (JsonResponse a) where
     case A.eitherDecode (L.responseBody response) of
       Left e -> throwIO (JsonHttpException e)
       Right x -> do
-        let preview = (BL.toStrict . BL.take 1024 . L.responseBody) response
+        let preview
+              = BL.toStrict
+              . BL.take bodyPreviewLength
+              . L.responseBody
+              $ response
         return $ JsonResponse response { L.responseBody = x } preview
   makeResponseBodyPreview (JsonResponse _ preview) = return preview
 
@@ -1334,7 +1338,7 @@ instance HttpResponse BsResponse where
     L.withResponse request manager $ \response -> do
       chunks <- L.brConsume (L.responseBody response)
       return $ BsResponse response { L.responseBody = B.concat chunks }
-  makeResponseBodyPreview = return . B.take 1024 . responseBody
+  makeResponseBodyPreview = return . B.take bodyPreviewLength . responseBody
 
 -- | Use this as the forth argument of 'req' to specify that you want to
 -- interpret response body as a strict 'ByteString'.
@@ -1435,8 +1439,8 @@ class HttpResponse response where
   getHttpResponse :: L.Request -> L.Manager -> IO response
 
   -- | Construct a “preview” of response body. It is recommend to limit the
-  -- length to 1024 bytes. This is mainly useful for inclusion in
-  -- exceptions.
+  -- length to 1024 bytes. This is mainly useful for inclusion of response
+  -- body fragments in exceptions.
   --
   -- @since 0.3.0
 
@@ -1499,3 +1503,11 @@ data Scheme
   = Http               -- ^ HTTP
   | Https              -- ^ HTTPS
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
+
+----------------------------------------------------------------------------
+-- Constants
+
+-- | Max length of preview fragment of response body.
+
+bodyPreviewLength :: Num a => a
+bodyPreviewLength = 1024
