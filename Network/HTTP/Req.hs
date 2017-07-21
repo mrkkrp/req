@@ -175,6 +175,7 @@ module Network.HTTP.Req
     -- *** Authentication
     -- $authentication
   , basicAuth
+  , basicAuthUnsafe
   , oAuth1
   , oAuth2Bearer
   , oAuth2Token
@@ -1180,7 +1181,19 @@ basicAuth
   :: ByteString        -- ^ Username
   -> ByteString        -- ^ Password
   -> Option 'Https     -- ^ Auth 'Option'
-basicAuth username password = asFinalizer
+basicAuth = basicAuthUnsafe
+
+-- | An alternative to 'basicAuth' which works for any scheme. Note that
+-- using basic access authentication without SSL/TLS is vulnerable to
+-- attacks. Use 'basicAuth' instead unless you know what you are doing.
+--
+-- @since 0.3.1
+
+basicAuthUnsafe
+  :: ByteString        -- ^ Username
+  -> ByteString        -- ^ Password
+  -> Option scheme     -- ^ Auth 'Option'
+basicAuthUnsafe username password = asFinalizer
   (pure . L.applyBasicAuth username password)
 
 -- | The 'Option' adds OAuth1 authentication.
