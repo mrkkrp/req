@@ -1,3 +1,7 @@
+## Req 0.3.1
+
+* Added `basicAuthUnsafe`.
+
 ## Req 0.3.0
 
 * Made URL parsing functions `parseUrlHttp` and `parseUrlHttps` recognize
