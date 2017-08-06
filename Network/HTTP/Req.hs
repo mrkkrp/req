@@ -605,7 +605,9 @@ instance MonadBase IO Req where
 instance MonadBaseControl IO Req where
   type StM Req a = a
   liftBaseWith f = Req . ReaderT $ \r -> f (runReq r)
+  {-# INLINEABLE liftBaseWith #-}
   restoreM       = Req . ReaderT . const . return
+  {-# INLINEABLE restoreM #-}
 
 instance MonadHttp Req where
   handleHttpException = Req . lift . throwIO
