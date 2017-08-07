@@ -95,6 +95,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -123,6 +124,8 @@ module Network.HTTP.Req
     -- $embedding-requests
   , MonadHttp  (..)
   , HttpConfig (..)
+  , Req
+  , runReq
     -- * Request
     -- ** Method
     -- $method
@@ -213,7 +216,10 @@ import Control.Applicative
 import Control.Arrow (first, second)
 import Control.Exception (Exception, try, handle, throwIO)
 import Control.Monad
+import Control.Monad.Base
 import Control.Monad.IO.Class
+import Control.Monad.Reader
+import Control.Monad.Trans.Control
 import Control.Retry
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import Data.ByteString (ByteString)
@@ -581,6 +587,42 @@ instance RequestComponent HttpConfig where
     x { L.proxy                   = httpConfigProxy
       , L.redirectCount           = httpConfigRedirectCount
       , LI.requestManagerOverride = httpConfigAltManager }
+
+-- | A monad that allows to run 'req' in any 'IO'-enabled monad without
+-- having to define new instances.
+--
+-- @since 0.4.0
+
+newtype Req a = Req (ReaderT HttpConfig IO a)
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , MonadIO )
+
+instance MonadBase IO Req where
+  liftBase = liftIO
+
+instance MonadBaseControl IO Req where
+  type StM Req a = a
+  liftBaseWith f = Req . ReaderT $ \r -> f (runReq r)
+  {-# INLINEABLE liftBaseWith #-}
+  restoreM       = Req . ReaderT . const . return
+  {-# INLINEABLE restoreM #-}
+
+instance MonadHttp Req where
+  handleHttpException = Req . lift . throwIO
+  getHttpConfig       = Req ask
+
+-- | Run a computation in the 'Req' monad with the given 'HttpConfig'. In
+-- case of exceptional situation an 'HttpException' will be thrown.
+--
+-- @since 0.4.0
+
+runReq :: MonadIO m
+  => HttpConfig        -- ^ 'HttpConfig' to use
+  -> Req a             -- ^ Computation to run
+  -> m a
+runReq config (Req m) = liftIO (runReaderT m config)
 
 ----------------------------------------------------------------------------
 -- Request—Method

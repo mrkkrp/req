@@ -1,3 +1,8 @@
+## Req 0.4.0
+
+* Added the `Req` monad and `runReq` function to run it. This allows to use
+  `req` without defining new (orphan) instances.
+
 ## Req 0.3.1
 
 * Added `basicAuthUnsafe`.

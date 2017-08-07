@@ -9,8 +9,9 @@ module Network.HTTP.ReqSpec
   ( spec )
 where
 
-import Control.Exception (throwIO)
+import Control.Exception
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
 import Data.Aeson (Value (..), ToJSON (..), object, (.=))
 import Data.Default.Class
 import Data.IORef
@@ -41,16 +42,17 @@ import Data.Word (Word)
 spec :: Spec
 spec = do
 
-  describe "exception throwing on non 2xx-status codes" $
-    it "throws indeed for non-2xx" $ do
-      let selector :: HttpException -> Bool
-          selector (VanillaHttpException
-                    (L.HttpExceptionRequest _
-                     (L.StatusCodeException response chunk))) =
-            L.responseStatus response == Y.status404 && not (B.null chunk)
-          selector _ = False
+  describe "exception throwing on non-2xx status codes" $
+    it "throws indeed for non-2xx" $
       req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
-        `shouldThrow` selector
+        `shouldThrow` selector404
+
+  describe "exception throwing on non-2xx status codes (Req monad)" $
+    it "throws indeed for non-2xx" $
+      asIO . runReq def $
+        liftBaseWith $ \run ->
+          run (req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty)
+            `shouldThrow` selector404
 
   describe "response check via httpConfigCheckResponse" $
     context "if it's set to always throw" $
@@ -401,6 +403,15 @@ checkStatusCode code =
         NoReqBody ignoreResponse mempty
       responseStatusCode r `shouldBe` code
 
+-- | Exception selector that selects only 404 “Not found” exceptions.
+
+selector404 :: HttpException -> Bool
+selector404 (VanillaHttpException
+             (L.HttpExceptionRequest _
+              (L.StatusCodeException response chunk))) =
+  L.responseStatus response == Y.status404 && not (B.null chunk)
+selector404 _ = False
+
 -- | Empty JSON 'Object'.
 
 emptyObject :: Value
@@ -410,3 +421,9 @@ emptyObject = Object HM.empty
 
 reflectJSON :: ToJSON a => a -> Text
 reflectJSON = T.decodeUtf8 . BL.toStrict . A.encode
+
+-- | Clarify to the type checker that the inner computation is in the 'IO'
+-- monad.
+
+asIO :: IO a -> IO a
+asIO = id
