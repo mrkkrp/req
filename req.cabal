@@ -94,6 +94,7 @@ test-suite httpbin-tests
                     , hspec            >= 2.0    && < 3.0
                     , http-client      >= 0.5    && < 0.6
                     , http-types       >= 0.8    && < 10.0
+                    , monad-control    >= 1.0    && < 1.1
                     , mtl              >= 2.0    && < 3.0
                     , req
                     , retry            >= 0.7    && < 0.8
