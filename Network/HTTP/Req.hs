@@ -496,7 +496,8 @@ withReqManager m = liftIO (readIORef globalManager) >>= m
 -- When writing a library, keep your API polymorphic in terms of
 -- 'MonadHttp', only define instance of 'MonadHttp' in final application.
 -- Another option is to use @newtype@ wrapped monad stack and define
--- 'MonadHttp' for it.
+-- 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad is provided
+-- for this out-of-the-box.
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
