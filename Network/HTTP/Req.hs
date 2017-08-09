@@ -569,8 +569,8 @@ instance Default HttpConfig where
     , httpConfigCheckResponse = \_ response ->
         let statusCode = responseStatusCode response in
           unless (200 <= statusCode && statusCode < 300) $ do
-            chunk <- makeResponseBodyPreview response
-            let vresponse = toVanillaResponse response
+            let chunk = makeResponseBodyPreview response
+                vresponse = toVanillaResponse response
             LI.throwHttp (L.StatusCodeException (void vresponse) chunk)
     , httpConfigRetryPolicy  = def
     , httpConfigRetryJudge   = \_ r -> return $
@@ -1346,7 +1346,7 @@ instance HttpResponse IgnoreResponse where
   toVanillaResponse (IgnoreResponse response) = response
   getHttpResponse request manager =
     IgnoreResponse <$> liftIO (L.httpNoBody request manager)
-  makeResponseBodyPreview _ = return "<ignored response>"
+  makeResponseBodyPreview _ = "<ignored response>"
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
 -- return the 'IgnoreResponse' interpretation.
@@ -1375,7 +1375,7 @@ instance FromJSON a => HttpResponse (JsonResponse a) where
               . L.responseBody
               $ response
         return $ JsonResponse response { L.responseBody = x } preview
-  makeResponseBodyPreview (JsonResponse _ preview) = return preview
+  makeResponseBodyPreview (JsonResponse _ preview) = preview
 
 -- | Use this as the forth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
@@ -1394,7 +1394,7 @@ instance HttpResponse BsResponse where
     L.withResponse request manager $ \response -> do
       chunks <- L.brConsume (L.responseBody response)
       return $ BsResponse response { L.responseBody = B.concat chunks }
-  makeResponseBodyPreview = return . B.take bodyPreviewLength . responseBody
+  makeResponseBodyPreview = B.take bodyPreviewLength . responseBody
 
 -- | Use this as the forth argument of 'req' to specify that you want to
 -- interpret response body as a strict 'ByteString'.
@@ -1412,7 +1412,7 @@ instance HttpResponse LbsResponse where
   toVanillaResponse (LbsResponse response) = response
   getHttpResponse request manager =
     LbsResponse <$> L.httpLbs request manager
-  makeResponseBodyPreview = return . BL.toStrict . BL.take 1027 . responseBody
+  makeResponseBodyPreview = BL.toStrict . BL.take 1027 . responseBody
 
 -- | Use this as the forth argument of 'req' to specify that you want to
 -- interpret response body as a lazy 'BL.ByteString'.
@@ -1500,7 +1500,7 @@ class HttpResponse response where
   --
   -- @since 0.3.0
 
-  makeResponseBodyPreview :: response -> IO ByteString
+  makeResponseBodyPreview :: response -> ByteString
 
 ----------------------------------------------------------------------------
 -- Other
