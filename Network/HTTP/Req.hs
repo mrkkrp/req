@@ -568,10 +568,10 @@ instance Default HttpConfig where
     , httpConfigAltManager    = Nothing
     , httpConfigCheckResponse = \_ response ->
         let statusCode = responseStatusCode response in
-          unless (200 <= statusCode && statusCode < 300) $ do
+          unless (200 <= statusCode && statusCode < 300) $
             let chunk = makeResponseBodyPreview response
                 vresponse = toVanillaResponse response
-            LI.throwHttp (L.StatusCodeException (void vresponse) chunk)
+            in LI.throwHttp (L.StatusCodeException (void vresponse) chunk)
     , httpConfigRetryPolicy  = def
     , httpConfigRetryJudge   = \_ r -> return $
         responseStatusCode r `elem`
