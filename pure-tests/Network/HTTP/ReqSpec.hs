@@ -17,7 +17,6 @@ module Network.HTTP.ReqSpec
 where
 
 import Control.Exception (throwIO)
-import Control.Monad.Reader
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
 import Data.Default.Class
@@ -54,7 +53,7 @@ spec = do
   describe "config" $
     it "getHttpConfig has effect on resulting request" $
       property $ \config -> do
-        request <- runReaderT (req_ GET url NoReqBody mempty) config
+        request <- runReq config (req_ GET url NoReqBody mempty)
         L.proxy         request `shouldBe` httpConfigProxy         config
         L.redirectCount request `shouldBe` httpConfigRedirectCount config
 
@@ -295,10 +294,6 @@ spec = do
 
 instance MonadHttp IO where
   handleHttpException = throwIO
-
-instance MonadHttp (ReaderT HttpConfig IO) where
-  handleHttpException = liftIO . throwIO
-  getHttpConfig       = ask
 
 instance Arbitrary HttpConfig where
   arbitrary = do

@@ -323,40 +323,29 @@ spec = do
 instance MonadHttp IO where
   handleHttpException = throwIO
 
-instance MonadHttp (ReaderT HttpConfig IO) where
-  handleHttpException = liftIO . throwIO
-  getHttpConfig       = ask
-
 ----------------------------------------------------------------------------
 -- Helpers
 
 -- | Run request with such settings that it does not signal error on adverse
 -- response status codes.
 
-prepareForShit
-  :: ReaderT HttpConfig IO a
-  -> IO a
-prepareForShit m = runReaderT m def { httpConfigCheckResponse = noNoise }
+prepareForShit :: Req a -> IO a
+prepareForShit = runReq def { httpConfigCheckResponse = noNoise }
   where
     noNoise _ _ = return ()
 
 -- | Run request with such settings that it throws on any response.
 
-blindlyThrowing
-  :: ReaderT HttpConfig IO a
-  -> IO a
-blindlyThrowing m = runReaderT m def { httpConfigCheckResponse = doit }
+blindlyThrowing :: Req a -> IO a
+blindlyThrowing = runReq def { httpConfigCheckResponse = doit }
   where
     doit _ _ = error "Oops!"
 
 -- | Run request with such settings that every retry increments the given
 -- @'IORef' 'Int'@.
 
-countingRetries
-  :: IORef Int
-  -> ReaderT HttpConfig IO a
-  -> IO a
-countingRetries nref m = runReaderT m def
+countingRetries :: IORef Int -> Req a -> IO a
+countingRetries nref = runReq def
   { httpConfigCheckResponse = noNoise
   , httpConfigRetryPolicy   = R.constantDelay 50000 <> R.limitRetries 5
   , httpConfigRetryJudge    = judge }
