@@ -1498,7 +1498,10 @@ class HttpResponse response where
   -- length to 1024 bytes. This is mainly useful for inclusion of response
   -- body fragments in exceptions.
   --
-  -- @since 0.3.0
+  -- __Note__: in versions 0.3.0–0.4.0 this function returned @'IO'
+  -- 'ByteString'@.
+  --
+  -- @since 0.5.0
 
   makeResponseBodyPreview :: response -> ByteString
 
