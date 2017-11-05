@@ -197,6 +197,10 @@ module Network.HTTP.Req
   , bsResponse
   , LbsResponse
   , lbsResponse
+  , TextResponse
+  , textResponse
+  , LTextResponse
+  , ltextResponse
     -- ** Inspecting a response
   , responseBody
   , responseStatusCode
@@ -246,6 +250,9 @@ import qualified Data.CaseInsensitive         as CI
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
+import qualified Data.Text.Encoding.Error     as TE
+import qualified Data.Text.Lazy               as TL
+import qualified Data.Text.Lazy.Encoding      as TL
 import qualified Data.Text.Read               as TR
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
@@ -292,6 +299,8 @@ import GHC.Exts (Constraint)
 --     * 'jsonResponse'
 --     * 'bsResponse' (to get a strict 'ByteString')
 --     * 'lbsResponse' (to get a lazy 'BL.ByteString')
+--     * 'textResponse' (to get a strict 'Text', UTF-8 decoded)
+--     * 'ltextResponse' (to get a lazy 'TL.Text', UTF-8 decoded)
 --
 -- Finally, @options@ is a 'Monoid' that holds a composite 'Option' for all
 -- other optional settings like query parameters, headers, non-standard port
@@ -1337,7 +1346,7 @@ httpVersion major minor = withRequest $ \x ->
 ----------------------------------------------------------------------------
 -- Response interpretations
 
--- | Make a request and ignore body of response.
+-- | Make a request and ignore the body of the response.
 
 data IgnoreResponse = IgnoreResponse (L.Response ())
 
@@ -1349,12 +1358,12 @@ instance HttpResponse IgnoreResponse where
   makeResponseBodyPreview _ = "<ignored response>"
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
--- return the 'IgnoreResponse' interpretation.
+-- ignore the response body.
 
 ignoreResponse :: Proxy IgnoreResponse
 ignoreResponse = Proxy
 
--- | Make a request and interpret body of response as JSON. The
+-- | Make a request and interpret the body of the response as JSON. The
 -- 'handleHttpException' method of 'MonadHttp' instance corresponding to
 -- monad in which you use 'req' will determine what to do in the case when
 -- parsing fails (the 'JsonHttpException' constructor will be used).
@@ -1377,13 +1386,14 @@ instance FromJSON a => HttpResponse (JsonResponse a) where
         return $ JsonResponse response { L.responseBody = x } preview
   makeResponseBodyPreview (JsonResponse _ preview) = preview
 
--- | Use this as the forth argument of 'req' to specify that you want it to
+-- | Use this as the fourth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
 
 jsonResponse :: Proxy (JsonResponse a)
 jsonResponse = Proxy
 
--- | Make a request and interpret body of response as a strict 'ByteString'.
+-- | Make a request and interpret the body of the response as a strict
+-- 'ByteString'.
 
 newtype BsResponse = BsResponse (L.Response ByteString)
 
@@ -1391,18 +1401,17 @@ instance HttpResponse BsResponse where
   type HttpResponseBody BsResponse = ByteString
   toVanillaResponse (BsResponse response) = response
   getHttpResponse request manager =
-    L.withResponse request manager $ \response -> do
-      chunks <- L.brConsume (L.responseBody response)
-      return $ BsResponse response { L.responseBody = B.concat chunks }
-  makeResponseBodyPreview = B.take bodyPreviewLength . responseBody
+    BsResponse <$> httpBs request manager
+  makeResponseBodyPreview =
+    B.take bodyPreviewLength . responseBody
 
--- | Use this as the forth argument of 'req' to specify that you want to
--- interpret response body as a strict 'ByteString'.
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as a strict 'ByteString'.
 
 bsResponse :: Proxy BsResponse
 bsResponse = Proxy
 
--- | Make a request and interpret body of response as a lazy
+-- | Make a request and interpret the body of the response as a lazy
 -- 'BL.ByteString'.
 
 newtype LbsResponse = LbsResponse (L.Response BL.ByteString)
@@ -1412,13 +1421,86 @@ instance HttpResponse LbsResponse where
   toVanillaResponse (LbsResponse response) = response
   getHttpResponse request manager =
     LbsResponse <$> L.httpLbs request manager
-  makeResponseBodyPreview = BL.toStrict . BL.take 1027 . responseBody
+  makeResponseBodyPreview =
+    BL.toStrict . BL.take bodyPreviewLength . responseBody
 
--- | Use this as the forth argument of 'req' to specify that you want to
--- interpret response body as a lazy 'BL.ByteString'.
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as a lazy 'BL.ByteString'.
 
 lbsResponse :: Proxy LbsResponse
 lbsResponse = Proxy
+
+-- | Make a request and interpret the body of the response as strict 'Text'.
+-- The 'handleHttpException' method of 'MonadHttp' instance corresponding to
+-- monad in which you use 'req' will determine what to do in the case when
+-- decoding fails (the 'TextEncHttpException' constructor will be used).
+--
+-- @since 0.5.0
+
+newtype TextResponse = TextResponse (L.Response Text)
+
+instance HttpResponse TextResponse where
+  type HttpResponseBody TextResponse = Text
+  toVanillaResponse (TextResponse r) = r
+  getHttpResponse request manager = do
+    r <- httpBs request manager
+    let bs = L.responseBody r
+    case T.decodeUtf8' bs of
+      Left uexc ->
+        (throwIO . TextEncHttpException uexc . B.take bodyPreviewLength) bs
+      Right txt -> return (TextResponse r { L.responseBody = txt })
+  makeResponseBodyPreview =
+    B.take bodyPreviewLength . T.encodeUtf8 . responseBody
+
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as 'T.Text'.
+--
+-- @since 0.5.0
+
+textResponse :: Proxy TextResponse
+textResponse = Proxy
+
+-- | Make a request and interpret the body of the response as lazy
+-- 'TL.Text'. The 'handleHttpException' method of 'MonadHttp' instance
+-- corresponding to monad in which you use 'req' will determine what to do
+-- in the case when decoding fails (the 'TextEncHttpException' constructor
+-- will be used).
+--
+-- @since 0.5.0
+
+newtype LTextResponse = LTextResponse (L.Response TL.Text)
+
+instance HttpResponse LTextResponse where
+  type HttpResponseBody LTextResponse = TL.Text
+  toVanillaResponse (LTextResponse r) = r
+  getHttpResponse request manager = do
+    r <- L.httpLbs request manager
+    case TL.decodeUtf8' (L.responseBody r) of
+      Left uexc -> throwIO
+        . TextEncHttpException uexc
+        . BL.toStrict
+        . BL.take bodyPreviewLength
+        . L.responseBody
+        $ r
+      Right txt -> return (LTextResponse r { L.responseBody = txt })
+  makeResponseBodyPreview =
+    BL.toStrict . BL.take bodyPreviewLength . TL.encodeUtf8 . responseBody
+
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as a lazy 'TL.Text'.
+--
+-- @since 0.5.0
+
+ltextResponse :: Proxy LTextResponse
+ltextResponse = Proxy
+
+-- | Perform a 'L.Request' using given 'L.Manager' and return the response
+-- as a strict 'ByteString'.
+
+httpBs :: L.Request -> L.Manager -> IO (L.Response ByteString)
+httpBs request manager = L.withResponse request manager $ \response -> do
+  chunks <- L.brConsume (L.responseBody response)
+  return response { L.responseBody = B.concat chunks }
 
 ----------------------------------------------------------------------------
 -- Inspecting a response
@@ -1540,7 +1622,14 @@ data HttpException
   = VanillaHttpException L.HttpException
     -- ^ A wrapper with an 'L.HttpException' from "Network.HTTP.Client"
   | JsonHttpException String
-    -- ^ A wrapper with Aeson-produced 'String' describing why decoding failed
+    -- ^ A wrapper with Aeson-produced 'String' describing why decoding
+    -- failed
+  | TextEncHttpException TE.UnicodeException ByteString
+    -- ^ This value indicates that a response that was expected to be in the
+    -- UTF-8 encoding could not be decoded; the 'ByteString' is the
+    -- beginning of response in raw binary form
+    --
+    -- @since 0.5.0
   deriving (Show, Typeable, Generic)
 
 instance Exception HttpException

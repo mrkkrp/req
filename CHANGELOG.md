@@ -3,6 +3,11 @@
 * Changed the signature of the `makeResponseBodyPreview` from `response ->
   IO ByteString` to `ByteString`.
 
+* Added `TextResponse`, `LTextResponse`, `textResponse`, and
+  `ltextResponse`.
+
+* Minor documentation improvements.
+
 ## Req 0.4.0
 
 * Added the `Req` monad and `runReq` function to run it. This allows to use
