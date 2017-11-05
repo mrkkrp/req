@@ -197,6 +197,8 @@ module Network.HTTP.Req
   , bsResponse
   , LbsResponse
   , lbsResponse
+  , TextResponse
+  , textResponse
     -- ** Inspecting a response
   , responseBody
   , responseStatusCode
@@ -292,6 +294,7 @@ import GHC.Exts (Constraint)
 --     * 'jsonResponse'
 --     * 'bsResponse' (to get a strict 'ByteString')
 --     * 'lbsResponse' (to get a lazy 'BL.ByteString')
+--     * 'textResponse' (to get a string of 'T.Text')
 --
 -- Finally, @options@ is a 'Monoid' that holds a composite 'Option' for all
 -- other optional settings like query parameters, headers, non-standard port
@@ -1337,7 +1340,7 @@ httpVersion major minor = withRequest $ \x ->
 ----------------------------------------------------------------------------
 -- Response interpretations
 
--- | Make a request and ignore body of response.
+-- | Make a request and ignore the body of the response.
 
 data IgnoreResponse = IgnoreResponse (L.Response ())
 
@@ -1349,12 +1352,12 @@ instance HttpResponse IgnoreResponse where
   makeResponseBodyPreview _ = "<ignored response>"
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
--- return the 'IgnoreResponse' interpretation.
+-- ignore the response body.
 
 ignoreResponse :: Proxy IgnoreResponse
 ignoreResponse = Proxy
 
--- | Make a request and interpret body of response as JSON. The
+-- | Make a request and interpret the body of the response as JSON. The
 -- 'handleHttpException' method of 'MonadHttp' instance corresponding to
 -- monad in which you use 'req' will determine what to do in the case when
 -- parsing fails (the 'JsonHttpException' constructor will be used).
@@ -1377,13 +1380,13 @@ instance FromJSON a => HttpResponse (JsonResponse a) where
         return $ JsonResponse response { L.responseBody = x } preview
   makeResponseBodyPreview (JsonResponse _ preview) = preview
 
--- | Use this as the forth argument of 'req' to specify that you want it to
+-- | Use this as the fourth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
 
 jsonResponse :: Proxy (JsonResponse a)
 jsonResponse = Proxy
 
--- | Make a request and interpret body of response as a strict 'ByteString'.
+-- | Make a request and interpret the body of the response as a strict 'ByteString'.
 
 newtype BsResponse = BsResponse (L.Response ByteString)
 
@@ -1396,13 +1399,13 @@ instance HttpResponse BsResponse where
       return $ BsResponse response { L.responseBody = B.concat chunks }
   makeResponseBodyPreview = B.take bodyPreviewLength . responseBody
 
--- | Use this as the forth argument of 'req' to specify that you want to
--- interpret response body as a strict 'ByteString'.
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as a strict 'ByteString'.
 
 bsResponse :: Proxy BsResponse
 bsResponse = Proxy
 
--- | Make a request and interpret body of response as a lazy
+-- | Make a request and interpret the body of the response as a lazy
 -- 'BL.ByteString'.
 
 newtype LbsResponse = LbsResponse (L.Response BL.ByteString)
@@ -1414,11 +1417,34 @@ instance HttpResponse LbsResponse where
     LbsResponse <$> L.httpLbs request manager
   makeResponseBodyPreview = BL.toStrict . BL.take 1027 . responseBody
 
--- | Use this as the forth argument of 'req' to specify that you want to
--- interpret response body as a lazy 'BL.ByteString'.
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as a lazy 'BL.ByteString'.
 
 lbsResponse :: Proxy LbsResponse
 lbsResponse = Proxy
+
+-- | Interpret the body of the response as 'T.Text'
+
+newtype TextResponse = TextResponse (L.Response T.Text)
+
+instance HttpResponse TextResponse where
+  type HttpResponseBody TextResponse = T.Text
+  toVanillaResponse (TextResponse r) = r
+  getHttpResponse request mgr =
+    TextResponse <$> httpText request mgr
+  makeResponseBodyPreview = B.take 1027 . T.encodeUtf8 . responseBody
+
+httpText :: LI.Request -> LI.Manager -> IO (LI.Response Text)
+httpText requ mgr = do
+  resp <- L.httpLbs requ mgr
+  return resp { L.responseBody = T.decodeUtf8 $ BL.toStrict (L.responseBody resp)}
+
+-- | Use this as the fourth argument of 'req' to specify that you want to
+-- interpret the response body as 'T.Text'.
+
+textResponse :: Proxy TextResponse
+textResponse = Proxy
+
 
 ----------------------------------------------------------------------------
 -- Inspecting a response
