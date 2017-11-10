@@ -941,7 +941,7 @@ instance HttpBody ReqBodyLbs where
 -- 'queryFlag'.
 --
 -- This body option sets the @Content-Type@ header to
--- @\"application/x-www-from-urlencoded\"@ value.
+-- @\"application/x-www-form-urlencoded\"@ value.
 
 newtype ReqBodyUrlEnc = ReqBodyUrlEnc FormUrlEncodedParam
 
