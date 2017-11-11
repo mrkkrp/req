@@ -29,7 +29,6 @@ import qualified Data.HashMap.Strict  as HM
 import qualified Data.Text            as T
 import qualified Data.Text.Encoding   as T
 import qualified Data.Text.IO         as TIO
-import qualified Data.Text.Lazy.IO    as TLIO
 import qualified Network.HTTP.Client  as L
 import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Types   as Y
@@ -198,31 +197,14 @@ spec = do
 
   -- TODO /delete
 
-  describe "receiving UTF-8 encoded Unicode data" $ do
-    context "as strict byte string" $
-      it "works" $ do
-        r <- req GET (httpbin /: "encoding" /: "utf8")
-          NoReqBody bsResponse mempty
-        utf8data <- B.readFile "httpbin-data/utf8.html"
-        responseBody          r `shouldBe` utf8data
-        responseStatusCode    r `shouldBe` 200
-        responseStatusMessage r `shouldBe` "OK"
-    context "as strict text" $ do
-      it "works" $ do
-        r <- req GET (httpbin /: "encoding" /: "utf8")
-          NoReqBody textResponse mempty
-        utf8data <- TIO.readFile "httpbin-data/utf8.html"
-        responseBody          r `shouldBe` utf8data
-        responseStatusCode    r `shouldBe` 200
-        responseStatusMessage r `shouldBe` "OK"
-    context "as lazy text" $
-      it "works" $ do
-        r <- req GET (httpbin /: "encoding" /: "utf8")
-          NoReqBody ltextResponse mempty
-        utf8data <- TLIO.readFile "httpbin-data/utf8.html"
-        responseBody          r `shouldBe` utf8data
-        responseStatusCode    r `shouldBe` 200
-        responseStatusMessage r `shouldBe` "OK"
+  describe "receiving UTF-8 encoded Unicode data" $
+    it "works" $ do
+      r <- req GET (httpbin /: "encoding" /: "utf8")
+        NoReqBody bsResponse mempty
+      utf8data <- B.readFile "httpbin-data/utf8.html"
+      responseBody          r `shouldBe` utf8data
+      responseStatusCode    r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
 
   -- TODO /gzip
   -- TODO /deflate

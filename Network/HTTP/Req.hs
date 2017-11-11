@@ -197,10 +197,6 @@ module Network.HTTP.Req
   , bsResponse
   , LbsResponse
   , lbsResponse
-  , TextResponse
-  , textResponse
-  , LTextResponse
-  , ltextResponse
     -- ** Inspecting a response
   , responseBody
   , responseStatusCode
@@ -250,9 +246,6 @@ import qualified Data.CaseInsensitive         as CI
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
-import qualified Data.Text.Encoding.Error     as TE
-import qualified Data.Text.Lazy               as TL
-import qualified Data.Text.Lazy.Encoding      as TL
 import qualified Data.Text.Read               as TR
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
@@ -299,8 +292,6 @@ import GHC.Exts (Constraint)
 --     * 'jsonResponse'
 --     * 'bsResponse' (to get a strict 'ByteString')
 --     * 'lbsResponse' (to get a lazy 'BL.ByteString')
---     * 'textResponse' (to get a strict 'Text', UTF-8 decoded)
---     * 'ltextResponse' (to get a lazy 'TL.Text', UTF-8 decoded)
 --
 -- Finally, @options@ is a 'Monoid' that holds a composite 'Option' for all
 -- other optional settings like query parameters, headers, non-standard port
@@ -1430,70 +1421,6 @@ instance HttpResponse LbsResponse where
 lbsResponse :: Proxy LbsResponse
 lbsResponse = Proxy
 
--- | Make a request and interpret the body of the response as strict 'Text'.
--- The 'handleHttpException' method of 'MonadHttp' instance corresponding to
--- monad in which you use 'req' will determine what to do in the case when
--- decoding fails (the 'TextEncHttpException' constructor will be used).
---
--- @since 0.5.0
-
-newtype TextResponse = TextResponse (L.Response Text)
-
-instance HttpResponse TextResponse where
-  type HttpResponseBody TextResponse = Text
-  toVanillaResponse (TextResponse r) = r
-  getHttpResponse request manager = do
-    r <- httpBs request manager
-    let bs = L.responseBody r
-    case T.decodeUtf8' bs of
-      Left uexc ->
-        (throwIO . TextEncHttpException uexc . B.take bodyPreviewLength) bs
-      Right txt -> return (TextResponse r { L.responseBody = txt })
-  makeResponseBodyPreview =
-    B.take bodyPreviewLength . T.encodeUtf8 . responseBody
-
--- | Use this as the fourth argument of 'req' to specify that you want to
--- interpret the response body as 'T.Text'.
---
--- @since 0.5.0
-
-textResponse :: Proxy TextResponse
-textResponse = Proxy
-
--- | Make a request and interpret the body of the response as lazy
--- 'TL.Text'. The 'handleHttpException' method of 'MonadHttp' instance
--- corresponding to monad in which you use 'req' will determine what to do
--- in the case when decoding fails (the 'TextEncHttpException' constructor
--- will be used).
---
--- @since 0.5.0
-
-newtype LTextResponse = LTextResponse (L.Response TL.Text)
-
-instance HttpResponse LTextResponse where
-  type HttpResponseBody LTextResponse = TL.Text
-  toVanillaResponse (LTextResponse r) = r
-  getHttpResponse request manager = do
-    r <- L.httpLbs request manager
-    case TL.decodeUtf8' (L.responseBody r) of
-      Left uexc -> throwIO
-        . TextEncHttpException uexc
-        . BL.toStrict
-        . BL.take bodyPreviewLength
-        . L.responseBody
-        $ r
-      Right txt -> return (LTextResponse r { L.responseBody = txt })
-  makeResponseBodyPreview =
-    BL.toStrict . BL.take bodyPreviewLength . TL.encodeUtf8 . responseBody
-
--- | Use this as the fourth argument of 'req' to specify that you want to
--- interpret the response body as a lazy 'TL.Text'.
---
--- @since 0.5.0
-
-ltextResponse :: Proxy LTextResponse
-ltextResponse = Proxy
-
 -- | Perform a 'L.Request' using given 'L.Manager' and return the response
 -- as a strict 'ByteString'.
 
@@ -1624,12 +1551,6 @@ data HttpException
   | JsonHttpException String
     -- ^ A wrapper with Aeson-produced 'String' describing why decoding
     -- failed
-  | TextEncHttpException TE.UnicodeException ByteString
-    -- ^ This value indicates that a response that was expected to be in the
-    -- UTF-8 encoding could not be decoded; the 'ByteString' is the
-    -- beginning of response in raw binary form
-    --
-    -- @since 0.5.0
   deriving (Show, Typeable, Generic)
 
 instance Exception HttpException

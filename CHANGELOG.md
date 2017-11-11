@@ -1,10 +1,7 @@
 ## Req 0.5.0
 
 * Changed the signature of the `makeResponseBodyPreview` from `response ->
-  IO ByteString` to `ByteString`.
-
-* Added `TextResponse`, `LTextResponse`, `textResponse`, and
-  `ltextResponse`.
+  IO ByteString` to `response -> ByteString`.
 
 * Minor documentation improvements.
 
