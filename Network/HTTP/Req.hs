@@ -419,8 +419,8 @@ req method url body Proxy options = req' method url body options $ \request mana
 -- that allows to perform a request in arbitrary fashion.
 --
 -- This function /does not/ perform handling\/wrapping exceptions, checking
--- response, and retrying. It only prepares 'L.Request' and allows you to
--- use it.
+-- response (with 'httpConfigCheckResponse'), and retrying. It only prepares
+-- 'L.Request' and allows you to use it.
 --
 -- @since 0.3.0
 
@@ -438,7 +438,6 @@ req'
   -> m a
 req' method url body options m = do
   config@HttpConfig {..}  <- getHttpConfig
-  manager <- liftIO (readIORef globalManager)
   let -- NOTE First appearance of any given header wins. This allows to
       -- “overwrite” headers when we construct a request by cons-ing.
       nubHeaders = Endo $ \x ->
@@ -456,7 +455,7 @@ req' method url body options m = do
         getRequestMod url                                 <>
         getRequestMod (Womb method :: Womb "method" method)
   request <- finalizeRequest options request'
-  m request manager
+  withReqManager (m request)
 
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
 -- settings, so users don't need to deal with this manager stuff at all, but
@@ -496,8 +495,8 @@ withReqManager m = liftIO (readIORef globalManager) >>= m
 -- When writing a library, keep your API polymorphic in terms of
 -- 'MonadHttp', only define instance of 'MonadHttp' in final application.
 -- Another option is to use @newtype@ wrapped monad stack and define
--- 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad is provided
--- for this out-of-the-box.
+-- 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad that follows
+-- this strategy is provided out-of-the-box.
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
@@ -516,9 +515,9 @@ class MonadIO m => MonadHttp m where
   -- | Return 'HttpConfig' to be used when performing HTTP requests. Default
   -- implementation returns its 'def' value, which is described in the
   -- documentation for the type. Common usage pattern with manually defined
-  -- 'getHttpConfig' is to return some hard-coded value, or value extracted
-  -- from 'Control.Monad.Reader.MonadReader' if a more flexible approach to
-  -- configuration is desirable.
+  -- 'getHttpConfig' is to return some hard-coded value, or a value
+  -- extracted from 'Control.Monad.Reader.MonadReader' if a more flexible
+  -- approach to configuration is desirable.
 
   getHttpConfig :: m HttpConfig
   getHttpConfig = return def
@@ -536,8 +535,8 @@ data HttpConfig = HttpConfig
     -- value: 10.
   , httpConfigAltManager    :: Maybe L.Manager
     -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
-    -- that default implicit manager will be used (that's what you want in
-    -- 99% of cases).
+    -- that the default implicit manager will be used (that's what you want
+    -- in 99% of cases).
   , httpConfigCheckResponse :: forall r. HttpResponse r => L.Request -> r -> IO ()
     -- ^ Function to check the response immediately after receiving the
     -- status and headers. This is used for throwing exceptions on
@@ -713,7 +712,7 @@ instance HttpMethod PATCH where
   httpMethodName Proxy = Y.methodPatch
 
 -- | A type class for types that can be used as an HTTP method. To define a
--- non-standard method, follow this example that defines COPY:
+-- non-standard method, follow this example that defines @COPY@:
 --
 -- > data COPY = COPY
 -- >
@@ -954,7 +953,7 @@ instance QueryParam FormUrlEncodedParam where
 -- | Multipart form data. Please consult the
 -- "Network.HTTP.Client.MultipartFormData" module for how to construct
 -- parts, then use 'reqBodyMultipart' to create actual request body from the
--- parts. 'reqBodyMultipart' is the only way to get a value of type
+-- parts. 'reqBodyMultipart' is the only way to get a value of the type
 -- 'ReqBodyMultipart', as its constructor is not exported on purpose.
 --
 -- @since 0.2.0
@@ -1063,9 +1062,9 @@ instance HttpBody body => RequestComponent (Womb "body" body) where
 -- the last argument of 'req' to specify no optional parameters, or combine
 -- 'Option's using 'mappend' (or @('<>')@) to have several of them at once.
 
--- | Opaque 'Option' type is a 'Monoid' you can use to pack collection of
--- optional parameters like query parameters and headers. See sections below
--- to learn which 'Option' primitives are available.
+-- | The opaque 'Option' type is a 'Monoid' you can use to pack collection
+-- of optional parameters like query parameters and headers. See sections
+-- below to learn which 'Option' primitives are available.
 
 data Option (scheme :: Scheme) =
   Option (Endo (Y.QueryText, L.Request)) (Maybe (L.Request -> IO L.Request))
@@ -1096,8 +1095,8 @@ withQueryParams f = Option (Endo (first f)) Nothing
 withRequest :: (L.Request -> L.Request) -> Option scheme
 withRequest f = Option (Endo (second f)) Nothing
 
--- | A helper to create an 'Option' that adds a finalizer (request
--- transformation that is applied after all other modifications).
+-- | A helper to create an 'Option' that adds a finalizer (an IO-enabled
+-- request transformation that is applied after all other modifications).
 
 asFinalizer :: (L.Request -> IO L.Request) -> Option scheme
 asFinalizer = Option mempty . pure
@@ -1293,7 +1292,7 @@ oAuth2Token token = asFinalizer
 
 -- | Specify the port to connect to explicitly. Normally, 'Url' you use
 -- determines the default port: @80@ for HTTP and @443@ for HTTPS. This
--- 'Option' allows to choose arbitrary port overwriting the defaults.
+-- 'Option' allows to choose an arbitrary port overwriting the defaults.
 
 port :: Int -> Option scheme
 port n = withRequest $ \x ->
@@ -1482,7 +1481,7 @@ responseCookieJar = L.responseCookieJar . toVanillaResponse
 -- $new-response-interpretation
 --
 -- To create a new response interpretation you just need to make your data
--- type an instance of 'HttpResponse' type class.
+-- type an instance of the 'HttpResponse' type class.
 
 -- | A type class for response interpretations. It allows to fully control
 -- how request is made and how its body is parsed.
@@ -1504,7 +1503,7 @@ class HttpResponse response where
   getHttpResponse :: L.Request -> L.Manager -> IO response
 
   -- | Construct a “preview” of response body. It is recommend to limit the
-  -- length to 1024 bytes. This is mainly useful for inclusion of response
+  -- length to 1024 bytes. This is mainly used for inclusion of response
   -- body fragments in exceptions.
   --
   -- __Note__: in versions 0.3.0–0.4.0 this function returned @'IO'
@@ -1522,14 +1521,16 @@ class HttpResponse response where
 -- 'RequestComponent' changing\/overwriting something in it. 'Endo' is a
 -- monoid of endomorphisms under composition, it's used to chain different
 -- request components easier using @('<>')@.
+--
+-- __Note__: this type class is not a part of the public API.
 
 class RequestComponent a where
 
   -- | Get a function that takes a 'L.Request' and changes it somehow
-  -- returning another 'L.Request'. For example HTTP method instance of
-  -- 'RequestComponent' just overwrites method. The function is wrapped in
-  -- 'Endo' so it's easier to chain such “modifying applications” together
-  -- building bigger and bigger 'RequestComponent's.
+  -- returning another 'L.Request'. For example, the 'HttpMethod' instance
+  -- of 'RequestComponent' just overwrites method. The function is wrapped
+  -- in 'Endo' so it's easier to chain such “modifying applications”
+  -- together building bigger and bigger 'RequestComponent's.
 
   getRequestMod :: a -> Endo L.Request
 
