@@ -1,16 +1,13 @@
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RankNTypes           #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
-#if __GLASGOW_HASKELL__ <  710
-{-# LANGUAGE ConstraintKinds      #-}
-#endif
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE DataKinds                 #-}
+{-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# OPTIONS_GHC -fno-warn-orphans      #-}
 
 module Network.HTTP.ReqSpec
   ( spec )
@@ -40,12 +37,6 @@ import qualified Data.Text                as T
 import qualified Data.Text.Encoding       as T
 import qualified Network.HTTP.Client      as L
 import qualified Network.HTTP.Types       as Y
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-import Data.Foldable (foldMap)
-import Data.Monoid (mempty)
-#endif
 
 spec :: Spec
 spec = do
@@ -299,10 +290,10 @@ instance Arbitrary HttpConfig where
   arbitrary = do
     httpConfigProxy         <- arbitrary
     httpConfigRedirectCount <- arbitrary
-    let httpConfigAltManager = Nothing
-        httpConfigCheckResponse _ _ = return ()
-        httpConfigRetryPolicy  = def
-        httpConfigRetryJudge _ _ = return False
+    let httpConfigAltManager          = Nothing
+        httpConfigCheckResponse _ _ _ = Nothing
+        httpConfigRetryPolicy         = def
+        httpConfigRetryJudge      _ _ = False
     return HttpConfig {..}
 
 instance Show HttpConfig where

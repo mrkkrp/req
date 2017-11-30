@@ -88,6 +88,7 @@
 -- machinery for performing requests is the same as with @http-conduit@ and
 -- @wreq@. The only difference is the API.
 
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
@@ -106,10 +107,6 @@
 {-# LANGUAGE UndecidableInstances       #-}
 #endif
 
-#if __GLASGOW_HASKELL__ <  710
-{-# LANGUAGE ConstraintKinds            #-}
-#endif
-
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 #endif
@@ -118,6 +115,7 @@ module Network.HTTP.Req
   ( -- * Making a request
     -- $making-a-request
     req
+  , reqBr
   , req'
   , withReqManager
     -- * Embedding requests into your monad
@@ -214,8 +212,6 @@ where
 
 import Control.Applicative
 import Control.Arrow (first, second)
-import Control.Exception (Exception, try, handle, throwIO)
-import Control.Monad
 import Control.Monad.Base
 import Control.Monad.IO.Class
 import Control.Monad.Reader
@@ -256,8 +252,10 @@ import qualified Network.HTTP.Types           as Y
 import qualified Web.Authenticate.OAuth       as OAuth
 
 #if MIN_VERSION_base(4,9,0)
+import Control.Exception hiding (TypeError)
 import Data.Kind (Constraint)
 #else
+import Control.Exception
 import GHC.Exts (Constraint)
 #endif
 
@@ -266,7 +264,7 @@ import GHC.Exts (Constraint)
 
 -- $making-a-request
 --
--- To make an HTTP request you need only one function: 'req'.
+-- To make an HTTP request you normally need only one function: 'req'.
 
 -- | Make an HTTP request. The function takes 5 arguments, 4 of which
 -- specify required parameters and the final 'Option' argument is a
@@ -404,15 +402,47 @@ req
   -> Proxy response    -- ^ A hint how to interpret response
   -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
-req method url body Proxy options = req' method url body options $ \request manager -> do
+req method url body Proxy options =
+  reqBr method url body options getHttpResponse
+
+-- | A version of 'req' that does not use one of the predefined instances of
+-- 'HttpResponse' but instead allows the user to consume @'L.Response'
+-- 'L.BodyReader'@ manually, in a custom way.
+--
+-- @since 1.0.0
+
+reqBr
+  :: ( MonadHttp    m
+     , HttpMethod   method
+     , HttpBody     body
+     , HttpBodyAllowed (AllowsBody method) (ProvidesBody body) )
+  => method            -- ^ HTTP method
+  -> Url scheme        -- ^ 'Url'—location of resource
+  -> body              -- ^ Body of the request
+  -> Option scheme     -- ^ Collection of optional parameters
+  -> (L.Response L.BodyReader -> IO a) -- ^ How to consume response
+  -> m a               -- ^ Result
+reqBr method url body options consume = req' method url body options $ \request manager -> do
   HttpConfig {..}  <- getHttpConfig
-  let wrappingVanilla = handle (throwIO . VanillaHttpException)
-      wrapExc         = handle (throwIO . LI.toHttpException request)
-  (liftIO . try . wrappingVanilla . wrapExc) (do
-    response <- retrying httpConfigRetryPolicy httpConfigRetryJudge
-      (const $ getHttpResponse request manager)
-    httpConfigCheckResponse request response
-    return response)
+  let wrapVanilla = handle (throwIO . VanillaHttpException)
+      wrapExc     = handle (throwIO . LI.toHttpException request)
+      withRRef    = bracket
+        (newIORef Nothing)
+        (readIORef >=> mapM_ L.responseClose)
+  (liftIO . try . wrapVanilla . wrapExc) (withRRef $ \rref -> do
+    let openResponse = mask_ $ do
+          r  <- readIORef rref
+          mapM_ L.responseClose r
+          r' <- L.responseOpen request manager
+          writeIORef rref (Just r')
+          return r'
+    r <- retrying
+      httpConfigRetryPolicy
+      (\st r -> return $ httpConfigRetryJudge st r)
+      (const openResponse)
+    (preview, r') <- grabPreview bodyPreviewLength r
+    mapM_ LI.throwHttp (httpConfigCheckResponse request r' preview)
+    consume r')
     >>= either handleHttpException return
 
 -- | Mostly like 'req' with respect to its arguments, but accepts a callback
@@ -435,7 +465,7 @@ req'
   -> body              -- ^ Body of the request
   -> Option scheme     -- ^ Collection of optional parameters
   -> (L.Request -> L.Manager -> m a) -- ^ How to perform request
-  -> m a
+  -> m a               -- ^ Result
 req' method url body options m = do
   config@HttpConfig {..}  <- getHttpConfig
   let -- NOTE First appearance of any given header wins. This allows to
@@ -457,6 +487,13 @@ req' method url body options m = do
   request <- finalizeRequest options request'
   withReqManager (m request)
 
+-- | Perform an action using the global implicit 'L.Manager' that the rest
+-- of the library uses. This allows to reuse connections that the
+-- 'L.Manager' controls.
+
+withReqManager :: MonadIO m => (L.Manager -> m a) -> m a
+withReqManager m = liftIO (readIORef globalManager) >>= m
+
 -- | Global 'L.Manager' that 'req' uses. Here we just go with the default
 -- settings, so users don't need to deal with this manager stuff at all, but
 -- when we create a request, instance 'HttpConfig' can affect the default
@@ -477,13 +514,6 @@ globalManager = unsafePerformIO $ do
   newIORef manager
 {-# NOINLINE globalManager #-}
 
--- | Perform an action using global implicit 'L.Manager' that the rest of
--- the library uses. This allows to reuse connections that the 'L.Manager'
--- controls.
-
-withReqManager :: MonadIO m => (L.Manager -> m a) -> m a
-withReqManager m = liftIO (readIORef globalManager) >>= m
-
 ----------------------------------------------------------------------------
 -- Embedding requests into your monad
 
@@ -496,7 +526,7 @@ withReqManager m = liftIO (readIORef globalManager) >>= m
 -- 'MonadHttp', only define instance of 'MonadHttp' in final application.
 -- Another option is to use @newtype@ wrapped monad stack and define
 -- 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad that follows
--- this strategy is provided out-of-the-box.
+-- this strategy is provided out-of-the-box (see below).
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
@@ -526,36 +556,59 @@ class MonadIO m => MonadHttp m where
 -- making HTTP requests.
 
 data HttpConfig = HttpConfig
-  { httpConfigProxy         :: Maybe L.Proxy
+  { httpConfigProxy :: Maybe L.Proxy
     -- ^ Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
     -- environment variables are respected, this setting overwrites them.
     -- Default value: 'Nothing'.
   , httpConfigRedirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. Default
     -- value: 10.
-  , httpConfigAltManager    :: Maybe L.Manager
+  , httpConfigAltManager :: Maybe L.Manager
     -- ^ Alternative 'L.Manager' to use. 'Nothing' (default value) means
     -- that the default implicit manager will be used (that's what you want
     -- in 99% of cases).
-  , httpConfigCheckResponse :: forall r. HttpResponse r => L.Request -> r -> IO ()
+  , httpConfigCheckResponse
+    :: forall b.
+       L.Request
+    -> L.Response b
+    -> ByteString
+    -> Maybe L.HttpExceptionContent
     -- ^ Function to check the response immediately after receiving the
-    -- status and headers. This is used for throwing exceptions on
-    -- non-success status codes by default (set to @\\_ _ -> return ()@ if
-    -- this behavior is not desirable). Throwing is better then just
-    -- returning a request with non-2xx status code because in that case
-    -- something is wrong and we need a way to short-cut execution. The
-    -- thrown exception is caught by the library though and is available in
-    -- 'handleHttpException'.
+    -- status and headers, before streaming of response body. The third
+    -- argument is the beginning of response body (typically first 1024
+    -- bytes). This is used for throwing exceptions on non-success status
+    -- codes by default (set to @\\_ _ _ -> Nothing@ if this behavior is not
+    -- desirable).
+    --
+    -- When the value this function returns is 'Nothing', nothing will
+    -- happen. When it there is 'L.HttpExceptionContent' inside 'Just', it
+    -- will be thrown.
+    --
+    -- Throwing is better then just returning a request with non-2xx status
+    -- code because in that case something is wrong and we need a way to
+    -- short-cut execution (also remember that Req retries automatically on
+    -- request timeouts and such, so when your request fails, it's certainly
+    -- something exceptional). The thrown exception is caught by the library
+    -- though and is available in 'handleHttpException'.
+    --
+    -- __Note__: signature of this function was changed in the version
+    -- /1.0.0/.
     --
     -- @since 0.3.0
-  , httpConfigRetryPolicy :: RetryPolicyM IO
+  , httpConfigRetryPolicy :: RetryPolicy
     -- ^ The retry policy to use for request retrying. By default 'def' is
     -- used (see 'RetryPolicyM').
     --
+    -- __Note__: signature of this function was changed in the version
+    -- /1.0.0/.
+    --
     -- @since 0.3.0
-  , httpConfigRetryJudge :: forall r. HttpResponse r => RetryStatus -> r -> IO Bool
+  , httpConfigRetryJudge :: forall b. RetryStatus -> L.Response b -> Bool
     -- ^ The function is used to decide whether to retry a request. 'True'
     -- means that the request should be retried.
+    --
+    -- __Note__: signature of this function was changed in the version
+    -- /1.0.0/.
     --
     -- @since 0.3.0
   } deriving Typeable
@@ -565,15 +618,14 @@ instance Default HttpConfig where
     { httpConfigProxy         = Nothing
     , httpConfigRedirectCount = 10
     , httpConfigAltManager    = Nothing
-    , httpConfigCheckResponse = \_ response ->
-        let statusCode = responseStatusCode response in
-          unless (200 <= statusCode && statusCode < 300) $
-            let chunk = makeResponseBodyPreview response
-                vresponse = toVanillaResponse response
-            in LI.throwHttp (L.StatusCodeException (void vresponse) chunk)
+    , httpConfigCheckResponse = \_ response preview ->
+        let scode = statusCode response
+        in if 200 <= scode && scode < 300
+             then Nothing
+             else Just (L.StatusCodeException (void response) preview)
     , httpConfigRetryPolicy  = def
-    , httpConfigRetryJudge   = \_ r -> return $
-        responseStatusCode r `elem`
+    , httpConfigRetryJudge   = \_ response ->
+        statusCode response `elem`
           [ 408 -- Request timeout
           , 504 -- Gateway timeout
           , 524 -- A timeout occurred
@@ -581,6 +633,8 @@ instance Default HttpConfig where
           , 599 -- (Informal convention) Network connect timeout error
           ]
     }
+    where
+      statusCode = Y.statusCode . L.responseStatus
 
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->
@@ -724,7 +778,7 @@ class HttpMethod a where
 
   -- | Type function 'AllowsBody' returns a type of kind 'CanHaveBody' which
   -- tells the rest of the library whether the method can have a body or
-  -- not. We use the special type 'CanHaveBody' “lifted” to kind level
+  -- not. We use the special type 'CanHaveBody' lifted to the kind level
   -- instead of 'Bool' to get more user-friendly compiler messages.
 
   type AllowsBody a :: CanHaveBody
@@ -867,7 +921,7 @@ instance RequestComponent (Url scheme) where
 -- A number of options for request bodies are available. The @Content-Type@
 -- header is set for you automatically according to the body option you use
 -- (it's always specified in documentation for a given body option). To add
--- your own way to represent request body, see 'HttpBody'.
+-- your own way to represent request body, define an instance of 'HttpBody'.
 
 -- | This data type represents empty body of an HTTP request. This is the
 -- data type to use with 'HttpMethod's that cannot have a body, as it's the
@@ -1003,8 +1057,6 @@ reqBodyMultipart parts = liftIO $ do
 
 class HttpBody body where
 
-  {-# MINIMAL getRequestBody #-}
-
   -- | How to get actual 'L.RequestBody'.
 
   getRequestBody :: body -> L.RequestBody
@@ -1060,7 +1112,7 @@ instance HttpBody body => RequestComponent (Womb "body" body) where
 -- headers, port number, etc. All optional parameters have the type
 -- 'Option', which is a 'Monoid'. This means that you can use 'mempty' as
 -- the last argument of 'req' to specify no optional parameters, or combine
--- 'Option's using 'mappend' (or @('<>')@) to have several of them at once.
+-- 'Option's using 'mappend' or @('<>')@ to have several of them at once.
 
 -- | The opaque 'Option' type is a 'Monoid' you can use to pack collection
 -- of optional parameters like query parameters and headers. See sections
@@ -1123,7 +1175,7 @@ finalizeRequest (Option _ mfinalizer) = liftIO . fromMaybe pure mfinalizer
 -- bodies (of the type 'FormUrlEncodedParam').
 
 -- | This operator builds a query parameter that will be included in URL of
--- your request after question sign @?@. This is the same syntax you use
+-- your request after the question sign @?@. This is the same syntax you use
 -- with form URL encoded request bodies.
 --
 -- This operator is defined in terms of 'queryParam':
@@ -1135,8 +1187,8 @@ infix 7 =:
 name =: value = queryParam name (pure value)
 
 -- | Construct a flag, that is, valueless query parameter. For example, in
--- the following URL @a@ is a flag, while @b@ is a query parameter with a
--- value:
+-- the following URL @\"a\"@ is a flag, while @\"b\"@ is a query parameter
+-- with a value:
 --
 -- > https://httpbin.org/foo/bar?a&b=10
 --
@@ -1299,7 +1351,7 @@ port n = withRequest $ \x ->
   x { L.port = n }
 
 -- | This 'Option' controls whether gzipped data should be decompressed on
--- the fly. By default everything except for @application\/x-tar@ is
+-- the fly. By default everything except for @\"application\/x-tar\"@ is
 -- decompressed, i.e. we have:
 --
 -- > decompress (/= "application/x-tar")
@@ -1316,7 +1368,8 @@ decompress f = withRequest $ \x ->
   x { L.decompress = f }
 
 -- | Specify the number of microseconds to wait for response. The default
--- value is 30 seconds.
+-- value is 30 seconds (defined in 'L.ManagerSettings' of connection
+-- 'L.Manager').
 
 responseTimeout
   :: Int               -- ^ Number of microseconds to wait
@@ -1338,14 +1391,12 @@ httpVersion major minor = withRequest $ \x ->
 
 -- | Make a request and ignore the body of the response.
 
-data IgnoreResponse = IgnoreResponse (L.Response ())
+newtype IgnoreResponse = IgnoreResponse (L.Response ())
 
 instance HttpResponse IgnoreResponse where
   type HttpResponseBody IgnoreResponse = ()
-  toVanillaResponse (IgnoreResponse response) = response
-  getHttpResponse request manager =
-    IgnoreResponse <$> liftIO (L.httpNoBody request manager)
-  makeResponseBodyPreview _ = "<ignored response>"
+  toVanillaResponse (IgnoreResponse r) = r
+  getHttpResponse r = return $ IgnoreResponse (void r)
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
 -- ignore the response body.
@@ -1358,23 +1409,16 @@ ignoreResponse = Proxy
 -- monad in which you use 'req' will determine what to do in the case when
 -- parsing fails (the 'JsonHttpException' constructor will be used).
 
-data JsonResponse a = JsonResponse (L.Response a) ByteString
+newtype JsonResponse a = JsonResponse (L.Response a)
 
 instance FromJSON a => HttpResponse (JsonResponse a) where
   type HttpResponseBody (JsonResponse a) = a
-  toVanillaResponse (JsonResponse response _) = response
-  getHttpResponse request manager = do
-    response <- L.httpLbs request manager
-    case A.eitherDecode (L.responseBody response) of
-      Left e -> throwIO (JsonHttpException e)
-      Right x -> do
-        let preview
-              = BL.toStrict
-              . BL.take bodyPreviewLength
-              . L.responseBody
-              $ response
-        return $ JsonResponse response { L.responseBody = x } preview
-  makeResponseBodyPreview (JsonResponse _ preview) = preview
+  toVanillaResponse (JsonResponse r) = r
+  getHttpResponse r = do
+    chunks <- L.brConsume (L.responseBody r)
+    case A.eitherDecode (BL.fromChunks chunks) of
+      Left  e -> throwIO (JsonHttpException e)
+      Right x -> return $ JsonResponse (x <$ r)
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
@@ -1389,11 +1433,10 @@ newtype BsResponse = BsResponse (L.Response ByteString)
 
 instance HttpResponse BsResponse where
   type HttpResponseBody BsResponse = ByteString
-  toVanillaResponse (BsResponse response) = response
-  getHttpResponse request manager =
-    BsResponse <$> httpBs request manager
-  makeResponseBodyPreview =
-    B.take bodyPreviewLength . responseBody
+  toVanillaResponse (BsResponse r) = r
+  getHttpResponse r = do
+    chunks <- L.brConsume (L.responseBody r)
+    return $ BsResponse (B.concat chunks <$ r)
 
 -- | Use this as the fourth argument of 'req' to specify that you want to
 -- interpret the response body as a strict 'ByteString'.
@@ -1408,11 +1451,10 @@ newtype LbsResponse = LbsResponse (L.Response BL.ByteString)
 
 instance HttpResponse LbsResponse where
   type HttpResponseBody LbsResponse = BL.ByteString
-  toVanillaResponse (LbsResponse response) = response
-  getHttpResponse request manager =
-    LbsResponse <$> L.httpLbs request manager
-  makeResponseBodyPreview =
-    BL.toStrict . BL.take bodyPreviewLength . responseBody
+  toVanillaResponse (LbsResponse r) = r
+  getHttpResponse r = do
+    chunks <- L.brConsume (L.responseBody r)
+    return $ LbsResponse (BL.fromChunks chunks <$ r)
 
 -- | Use this as the fourth argument of 'req' to specify that you want to
 -- interpret the response body as a lazy 'BL.ByteString'.
@@ -1420,13 +1462,69 @@ instance HttpResponse LbsResponse where
 lbsResponse :: Proxy LbsResponse
 lbsResponse = Proxy
 
--- | Perform a 'L.Request' using given 'L.Manager' and return the response
--- as a strict 'ByteString'.
+----------------------------------------------------------------------------
+-- Helpers for response interpretations
 
-httpBs :: L.Request -> L.Manager -> IO (L.Response ByteString)
-httpBs request manager = L.withResponse request manager $ \response -> do
-  chunks <- L.brConsume (L.responseBody response)
-  return response { L.responseBody = B.concat chunks }
+-- | Fetch beginning of response and return it together with new
+-- @'L.Response' 'L.BodyReader'@ that can be passed to 'getHttpResponse' and
+-- such.
+
+grabPreview
+  :: Int
+     -- ^ How many bytes to fetch
+  -> L.Response L.BodyReader
+     -- ^ Response with body reader inside
+  -> IO (ByteString, L.Response L.BodyReader)
+     -- ^ Preview 'ByteString' and new response with body reader inside
+grabPreview nbytes r = do
+  let br = L.responseBody r
+  (target, leftover, done) <- brReadN br nbytes
+  nref <- newIORef (0 :: Int)
+  let br' = do
+        n <- readIORef nref
+        let incn = modifyIORef' nref (+ 1)
+        case n of
+          0 -> do
+            incn
+            if B.null target
+              then br'
+              else return target
+          1 -> do
+            incn
+            if B.null leftover
+              then br'
+              else return leftover
+          _ ->
+            if done
+              then return B.empty
+              else br
+  return (target, r { L.responseBody = br' })
+
+-- | Consume N bytes from 'L.BodyReader', return the target chunk, the
+-- leftover (may be empty), and whether we're done consuming the body.
+
+brReadN
+  :: L.BodyReader
+     -- ^ Body reader to stream from
+  -> Int
+     -- ^ How many bytes to consume
+  -> IO (ByteString, ByteString, Bool)
+     -- ^ Target chunk, the leftover, whether we're done
+brReadN br n = go 0 id id
+  where
+    go !tlen t l = do
+      chunk <- br
+      if B.null chunk
+        then return (r t, r l, True)
+        else do
+          let (target, leftover) = B.splitAt (n - tlen) chunk
+              tlen'              = B.length target
+              t'                 = t . (target:)
+              l'                 = l . (leftover:)
+          if tlen + tlen' < n
+            then go (tlen + tlen') t' l'
+            else return (r t', r l', False)
+    r f = B.concat (f [])
 
 ----------------------------------------------------------------------------
 -- Inspecting a response
@@ -1483,8 +1581,9 @@ responseCookieJar = L.responseCookieJar . toVanillaResponse
 -- To create a new response interpretation you just need to make your data
 -- type an instance of the 'HttpResponse' type class.
 
--- | A type class for response interpretations. It allows to fully control
--- how request is made and how its body is parsed.
+-- | A type class for response interpretations. It allows to describe how to
+-- consume response from a @'L.Response' 'L.BodyReader'@ and produce the
+-- final result that is to be returned to the user.
 
 class HttpResponse response where
 
@@ -1497,21 +1596,25 @@ class HttpResponse response where
 
   toVanillaResponse :: response -> L.Response (HttpResponseBody response)
 
-  -- | This method describes how to make an HTTP request given 'L.Request'
-  -- (prepared by the library) and 'L.Manager'.
-
-  getHttpResponse :: L.Request -> L.Manager -> IO response
-
-  -- | Construct a “preview” of response body. It is recommend to limit the
-  -- length to 1024 bytes. This is mainly used for inclusion of response
-  -- body fragments in exceptions.
+  -- | This method describes how to consume response body and, more
+  -- generally, obtain @response@ value from @'L.Response' 'L.BodyReader'@.
   --
-  -- __Note__: in versions 0.3.0–0.4.0 this function returned @'IO'
-  -- 'ByteString'@.
+  -- __Note__: 'L.BodyReader' is nothing but @'IO' 'ByteString'@. You should
+  -- call this action repeatedly until it yields the empty 'ByteString'. In
+  -- that case streaming of response is finished (which apparently leads to
+  -- closing of the connection, so don't call the reader after it has
+  -- returned the empty 'ByteString' once) and you can concatenate the
+  -- chunks to obtain the final result. (Of course you could as well stream
+  -- the contents to a file or do whatever you want.)
   --
-  -- @since 0.5.0
+  -- __Note__: signature of this function was changed in the version
+  -- /1.0.0/.
 
-  makeResponseBodyPreview :: response -> ByteString
+  getHttpResponse
+    :: L.Response L.BodyReader
+       -- ^ Response with body reader inside
+    -> IO response
+       -- ^ The final result
 
 ----------------------------------------------------------------------------
 -- Other
@@ -1556,8 +1659,9 @@ data HttpException
 
 instance Exception HttpException
 
--- | A simple 'Bool'-like type we only have for better error messages. We
--- use it as a kind and its data constructors as type-level tags.
+-- | A simple type isomorphic to 'Bool' that we only have for better error
+-- messages. We use it as a kind and its data constructors as type-level
+-- tags.
 --
 -- See also: 'HttpMethod' and 'HttpBody'.
 

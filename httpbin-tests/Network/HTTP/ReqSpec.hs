@@ -14,14 +14,12 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (Value (..), ToJSON (..), object, (.=))
 import Data.Default.Class
-import Data.IORef
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
 import Network.HTTP.Req
 import Test.Hspec
 import Test.QuickCheck
-import qualified Control.Retry        as R
 import qualified Data.Aeson           as A
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
@@ -32,12 +30,6 @@ import qualified Data.Text.IO         as TIO
 import qualified Network.HTTP.Client  as L
 import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Types   as Y
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-import Data.Monoid (mempty)
-import Data.Word (Word)
-#endif
 
 spec :: Spec
 spec = do
@@ -211,12 +203,12 @@ spec = do
 
   describe "retrying" $
     it "retries as many times as specified" $ do
+      -- FIXME We no longer can count retries because all the functions
+      -- responsible for controlling retrying are pure now.
       let status = 408 :: Int
-      nref <- newIORef (0 :: Int)
-      r <- countingRetries nref $ req GET (httpbin /: "status" /~ status)
+      r <- prepareForShit $ req GET (httpbin /: "status" /~ status)
         NoReqBody ignoreResponse mempty
       responseStatusCode r `shouldBe` status
-      readIORef nref `shouldReturn` 6 -- number of retries plus 1
 
   forM_ [101..102] checkStatusCode
   forM_ [200..208] checkStatusCode
@@ -332,7 +324,7 @@ instance MonadHttp IO where
 prepareForShit :: Req a -> IO a
 prepareForShit = runReq def { httpConfigCheckResponse = noNoise }
   where
-    noNoise _ _ = return ()
+    noNoise _ _ _ = Nothing
 
 -- | Run request with such settings that it throws on any response.
 
@@ -340,18 +332,6 @@ blindlyThrowing :: Req a -> IO a
 blindlyThrowing = runReq def { httpConfigCheckResponse = doit }
   where
     doit _ _ = error "Oops!"
-
--- | Run request with such settings that every retry increments the given
--- @'IORef' 'Int'@.
-
-countingRetries :: IORef Int -> Req a -> IO a
-countingRetries nref = runReq def
-  { httpConfigCheckResponse = noNoise
-  , httpConfigRetryPolicy   = R.constantDelay 50000 <> R.limitRetries 5
-  , httpConfigRetryJudge    = judge }
-  where
-    noNoise _ _ = return ()
-    judge   _ _ = True <$ modifyIORef nref (+ 1)
 
 -- | 'Url' representing <https://httpbin.org>.
 

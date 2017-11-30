@@ -1,5 +1,39 @@
 ## Req 1.0.0
 
+* Added the `reqBr` function allowing to consume `Response BodyReader`
+  without using a pre-defined instance of `HttpResponse`, in a custom way.
+
+* Now streaming of response body does not happen until we've checked headers
+  and status code with `httpConfigCheckResponse`. It also doesn't happen on
+  every retry. Streaming and obtaining of final response value happens only
+  once when we're happy with everything.
+
+  Previously we first tried to consume and interpret response body before
+  checking status code and determining whether we should retry the request.
+  This was not good, because we could expect a JSON response but get a
+  response with status code 500, and then still we would try to parse it as
+  JSON first before letting `httpConfigCheckResponse` throw an exception.
+
+  The corrected behavior should also make retrying more efficient.
+
+* Changed signatures of several fields of `HttpConfig`:
+  `httpConfigCheckResponse`, `httpConfigRetryPolicy`, and
+  `httpConfigRetryJudge` in order to eliminate redundant `IO` and prevent
+  the possibility that these functions could start consuming `BodyReader`.
+
+* Removed the `makeResponsePreview` method from the `HttpResponse` type
+  class. Preview business is handled by the library automatically on a lower
+  level now. Users do not need to concern themselves with such stuff.
+
+* Changed the type signature of the `getHttpResponse` method of the
+  `HttpResponse` type class. Previously it left too much freedom (and
+  responsibility) to implementers of the method. In fact, we now limit what
+  `getHttpResponse` does to just consuming and interpreting `Response
+  BodyReader`, so we can properly control details of connection
+  opening/closing etc., for the user.
+
+* Dropped support for GHC 7.8.
+
 * Minor documentation improvements.
 
 ## Req 0.5.0
