@@ -1,3 +1,7 @@
+## Req 1.0.0
+
+* Minor documentation improvements.
+
 ## Req 0.5.0
 
 * Changed the signature of the `makeResponseBodyPreview` from `response ->
