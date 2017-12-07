@@ -40,8 +40,8 @@ main = runReq def $ do
   liftIO $ print (responseBody r :: Value)
 ```
 
-Req is an easy-to-use, type-safe, expandable, high-level HTTP library that
-just works without any fooling around.
+Req is an easy-to-use, type-safe, expandable, high-level HTTP client library
+that just works without any fooling around.
 
 What does the phrase “easy-to-use” mean? It means that the library is
 designed to be beginner-friendly so it's simple to add to your monad stack,

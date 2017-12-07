@@ -9,9 +9,9 @@ maintainer:           Mark Karpov <markkarpov92@gmail.com>
 homepage:             https://github.com/mrkkrp/req
 bug-reports:          https://github.com/mrkkrp/req/issues
 category:             Network, Web
-synopsis:             Easy-to-use, type-safe, expandable, high-level HTTP library
+synopsis:             Easy-to-use, type-safe, expandable, high-level HTTP client library
 build-type:           Simple
-description:          Easy-to-use, type-safe, expandable, high-level HTTP library.
+description:          Easy-to-use, type-safe, expandable, high-level HTTP client library.
 extra-doc-files:      CHANGELOG.md
                     , README.md
 data-files:           httpbin-data/utf8.html
