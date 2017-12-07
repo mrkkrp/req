@@ -10,6 +10,7 @@
 * [Motivation and Req vs other libraries](#motivation-and-req-vs-other-libraries)
 * [Unsolved problems](#unsolved-problems)
 * [Related packages](#related-packages)
+* [Blog posts](#blog-posts)
 * [Contribution](#contribution)
 * [License](#license)
 
@@ -192,6 +193,10 @@ The following packages are designed to be used with Req:
 
 If you happen to have written a package that adds new features to Req,
 please submit a PR to include it in this list.
+
+## Blog posts
+
+* [Req 1.0.0, HTTP client, and streaming](https://markkarpov.com/post/req-1.0.0-http-client-and-streaming.html)
 
 ## Contribution
 
