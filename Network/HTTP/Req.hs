@@ -311,41 +311,39 @@ import GHC.Exts (Constraint)
 -- >
 -- > module Main (main) where
 -- >
--- > import Control.Exception (throwIO)
 -- > import Control.Monad
+-- > import Control.Monad.IO.Class
 -- > import Data.Aeson
+-- > import Data.Default.Class
 -- > import Data.Maybe (fromJust)
 -- > import Data.Monoid ((<>))
 -- > import Data.Text (Text)
 -- > import GHC.Generics
 -- > import Network.HTTP.Req
 -- > import qualified Data.ByteString.Char8 as B
--- >
--- > instance MonadHttp IO where
--- >   handleHttpException = throwIO
 --
 -- We will be making requests against the <https://httpbin.org> service.
 --
 -- Make a GET request, grab 5 random bytes:
 --
 -- > main :: IO ()
--- > main = do
+-- > main = runReq def $ do
 -- >   let n :: Int
 -- >       n = 5
 -- >   bs <- req GET (https "httpbin.org" /: "bytes" /~ n) NoReqBody bsResponse mempty
--- >   B.putStrLn (responseBody bs)
+-- >   liftIO $ B.putStrLn (responseBody bs)
 --
 -- The same, but now we use a query parameter named @\"seed\"@ to control
 -- seed of the generator:
 --
 -- > main :: IO ()
--- > main = do
+-- > main = runReq def $ do
 -- >   let n, seed :: Int
 -- >       n    = 5
 -- >       seed = 100
 -- >   bs <- req GET (https "httpbin.org" /: "bytes" /~ n) NoReqBody bsResponse $
 -- >     "seed" =: seed
--- >   B.putStrLn (responseBody bs)
+-- >   liftIO $ B.putStrLn (responseBody bs)
 --
 -- POST JSON data and get some info about the POST request:
 --
@@ -358,27 +356,27 @@ import GHC.Exts (Constraint)
 -- > instance FromJSON MyData
 -- >
 -- > main :: IO ()
--- > main = do
+-- > main = runReq def $ do
 -- >   let myData = MyData
 -- >         { size  = 6
 -- >         , color = "Green" }
 -- >   v <- req POST (https "httpbin.org" /: "post") (ReqBodyJson myData) jsonResponse mempty
--- >   print (responseBody v :: Value)
+-- >   liftIO $ print (responseBody v :: Value)
 --
 -- Sending URL-encoded body:
 --
 -- > main :: IO ()
--- > main = do
+-- > main = runReq def $ do
 -- >   let params =
 -- >         "foo" =: ("bar" :: Text) <>
 -- >         queryFlag "baz"
 -- >   response <- req POST (https "httpbin.org" /: "post") (ReqBodyUrlEnc params) jsonResponse mempty
--- >   print (responseBody response :: Value)
+-- >   liftIO $ print (responseBody response :: Value)
 --
 -- Using various optional parameters and URL that is not known in advance:
 --
 -- > main :: IO ()
--- > main = do
+-- > main = runReq def $ do
 -- >   -- This is an example of what to do when URL is given dynamically. Of
 -- >   -- course in a real application you may not want to use 'fromJust'.
 -- >   let (url, options) = fromJust (parseUrlHttps "https://httpbin.org/get?foo=bar")
@@ -388,7 +386,7 @@ import GHC.Exts (Constraint)
 -- >     basicAuth "username" "password" <>
 -- >     options                         <> -- contains the ?foo=bar part
 -- >     port 443 -- here you can put any port of course
--- >   print (responseBody response :: Value)
+-- >   liftIO $ print (responseBody response :: Value)
 
 req
   :: ( MonadHttp    m
