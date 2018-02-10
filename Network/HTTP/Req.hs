@@ -122,6 +122,7 @@ module Network.HTTP.Req
     -- $embedding-requests
   , MonadHttp  (..)
   , HttpConfig (..)
+  , defaultHttpConfig
   , Req
   , runReq
     -- * Request
@@ -612,7 +613,13 @@ data HttpConfig = HttpConfig
   } deriving Typeable
 
 instance Default HttpConfig where
-  def = HttpConfig
+  def = defaultHttpConfig
+
+-- | The default HTTP configuration
+--
+-- @since TODO
+defaultHttpConfig :: HttpConfig
+defaultHttpConfig = HttpConfig
     { httpConfigProxy         = Nothing
     , httpConfigRedirectCount = 10
     , httpConfigAltManager    = Nothing
