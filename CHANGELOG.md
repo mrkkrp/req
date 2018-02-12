@@ -1,3 +1,9 @@
+## Future release
+
+* Added the `defaultHttpConfig` function to return the default value for the
+  `HttpConfig` type without requiring clients to depend on the `data-default`
+  package via the `Data.Default.Default` type class.
+
 ## Req 1.0.0
 
 * Added the `reqBr` function allowing to consume `Response BodyReader`
