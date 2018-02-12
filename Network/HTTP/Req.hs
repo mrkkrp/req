@@ -1010,17 +1010,15 @@ instance QueryParam FormUrlEncodedParam where
 --
 -- @since 0.2.0
 --
--- ==== __Example__
+-- ==== __Examples__
 --
--- > import Control.Exception (throwIO)
--- > import qualified Network.HTTP.Client.MultipartFormData as LM
+-- > import Control.Monad.IO.Class
+-- > import Data.Default.Class
 -- > import Network.HTTP.Req
--- >
--- > instance MonadHttp IO where
--- >   handleHttpException = throwIO
+-- > import qualified Network.HTTP.Client.MultipartFormData as LM
 -- >
 -- > main :: IO ()
--- > main = do
+-- > main = runReq def $ do
 -- >   body <-
 -- >     reqBodyMultipart
 -- >       [ LM.partBS "title" "My Image"
@@ -1031,7 +1029,7 @@ instance QueryParam FormUrlEncodedParam where
 -- >       body
 -- >       bsResponse
 -- >       mempty
--- >   print $ responseBody response
+-- >   liftIO $ print (responseBody response)
 
 data ReqBodyMultipart = ReqBodyMultipart ByteString LI.RequestBody
 
