@@ -5,7 +5,6 @@
 [![Stackage Nightly](http://stackage.org/package/req/badge/nightly)](http://stackage.org/nightly/package/req)
 [![Stackage LTS](http://stackage.org/package/req/badge/lts)](http://stackage.org/lts/package/req)
 [![Build Status](https://travis-ci.org/mrkkrp/req.svg?branch=master)](https://travis-ci.org/mrkkrp/req)
-[![Coverage Status](https://coveralls.io/repos/mrkkrp/req/badge.svg?branch=master&service=github)](https://coveralls.io/github/mrkkrp/req?branch=master)
 
 * [Motivation and Req vs other libraries](#motivation-and-req-vs-other-libraries)
 * [Unsolved problems](#unsolved-problems)
