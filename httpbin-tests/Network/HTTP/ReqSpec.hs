@@ -210,7 +210,7 @@ spec = do
         NoReqBody ignoreResponse mempty
       responseStatusCode r `shouldBe` status
 
-  forM_ [101..102] checkStatusCode
+  -- forM_ [101..102] checkStatusCode
   forM_ [200..208] checkStatusCode
   -- forM_ [300..308] checkStatusCode
   forM_ [400..431] checkStatusCode
