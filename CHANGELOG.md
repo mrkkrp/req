@@ -3,6 +3,8 @@
 * Added `customAuth` and `attachHeader` to facilitate creation of custom
   authentication options.
 
+* Added `basicProxyAuth` authentication option.
+
 ## Req 1.0.0
 
 * Added the `reqBr` function allowing to consume `Response BodyReader`

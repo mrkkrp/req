@@ -37,6 +37,7 @@ import qualified Data.Text                as T
 import qualified Data.Text.Encoding       as T
 import qualified Network.HTTP.Client      as L
 import qualified Network.HTTP.Types       as Y
+import qualified Network.HTTP.Types.Header as Y
 
 spec :: Spec
 spec = do
@@ -238,6 +239,12 @@ spec = do
             (oAuth2Bearer token0 <> oAuth2Bearer token1)
           lookup "Authorization" (L.requestHeaders request) `shouldBe`
             pure ("Bearer " <> token0)
+    describe "ProxyAuthorization" $ do
+      it "sets Authorization header to correct value" $
+        property $ \username password -> do
+          request <- req_ GET url NoReqBody (basicProxyAuth username password)
+          lookup "Proxy-Authorization" (L.requestHeaders request) `shouldBe`
+            pure (basicProxyAuthHeader username password)
     describe "oAuth2Token" $ do
       it "sets Authorization header to correct value" $
         property $ \token -> do
@@ -447,3 +454,11 @@ basicAuthHeader :: ByteString -> ByteString -> ByteString
 basicAuthHeader username password =
   fromJust . lookup Y.hAuthorization . L.requestHeaders $
     L.applyBasicAuth username password L.defaultRequest
+
+-- | Get "Proxy-Authorization" basic proxy auth header given username and
+-- password.
+
+basicProxyAuthHeader :: ByteString -> ByteString -> ByteString
+basicProxyAuthHeader username password =
+  fromJust . lookup Y.hProxyAuthorization . L.requestHeaders $
+    L.applyBasicProxyAuth username password L.defaultRequest
