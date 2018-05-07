@@ -1289,7 +1289,7 @@ basicAuthUnsafe username password = asFinalizer
 
 -- | The 'Option' adds basic Proxy authentication
 --
--- @since 1.0.1
+-- @since 1.1.0
 
 basicProxyAuth
   :: ByteString       -- ^ Username
