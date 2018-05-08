@@ -170,6 +170,7 @@ module Network.HTTP.Req
   , QueryParam (..)
     -- *** Headers
   , header
+  , attachHeader
     -- *** Cookies
     -- $cookies
   , cookieJar
@@ -180,6 +181,7 @@ module Network.HTTP.Req
   , oAuth1
   , oAuth2Bearer
   , oAuth2Token
+  , customAuth
     -- *** Other
   , port
   , decompress
@@ -1143,12 +1145,6 @@ withQueryParams f = Option (Endo (first f)) Nothing
 withRequest :: (L.Request -> L.Request) -> Option scheme
 withRequest f = Option (Endo (second f)) Nothing
 
--- | A helper to create an 'Option' that adds a finalizer (an IO-enabled
--- request transformation that is applied after all other modifications).
-
-asFinalizer :: (L.Request -> IO L.Request) -> Option scheme
-asFinalizer = Option mempty . pure
-
 instance RequestComponent (Option scheme) where
   getRequestMod (Option f _) = Endo $ \x ->
     let (qparams, x') = appEndo f ([], x)
@@ -1229,6 +1225,8 @@ header name value = withRequest (attachHeader name value)
 
 -- | A non-public helper that attaches a header with given name and content
 -- to a 'L.Request'.
+--
+-- @since 1.1.0
 
 attachHeader :: ByteString -> ByteString -> L.Request -> L.Request
 attachHeader name value x =
@@ -1283,7 +1281,7 @@ basicAuthUnsafe
   :: ByteString        -- ^ Username
   -> ByteString        -- ^ Password
   -> Option scheme     -- ^ Auth 'Option'
-basicAuthUnsafe username password = asFinalizer
+basicAuthUnsafe username password = customAuth
   (pure . L.applyBasicAuth username password)
 
 -- | The 'Option' adds OAuth1 authentication.
@@ -1297,7 +1295,7 @@ oAuth1
   -> ByteString        -- ^ OAuth token secret
   -> Option scheme     -- ^ Auth 'Option'
 oAuth1 consumerToken consumerSecret token tokenSecret =
-  asFinalizer (OAuth.signOAuth app creds)
+  customAuth (OAuth.signOAuth app creds)
   where
     app = OAuth.newOAuth
       { OAuth.oauthConsumerKey    = consumerToken
@@ -1316,7 +1314,7 @@ oAuth1 consumerToken consumerSecret token tokenSecret =
 oAuth2Bearer
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
-oAuth2Bearer token = asFinalizer
+oAuth2Bearer token = customAuth
   (pure . attachHeader "Authorization" ("Bearer " <> token))
 
 -- | The 'Option' adds a not-quite-standard OAuth2 bearer token (that seems
@@ -1332,8 +1330,17 @@ oAuth2Bearer token = asFinalizer
 oAuth2Token
   :: ByteString        -- ^ Token
   -> Option 'Https     -- ^ Auth 'Option'
-oAuth2Token token = asFinalizer
+oAuth2Token token = customAuth
   (pure . attachHeader "Authorization" ("token " <> token))
+
+-- | A helper to create custom authentication 'Option's. The given
+-- 'IO'-enabled request transformation is applied after all other
+-- modifications when constructing a request. Use wisely.
+--
+-- @since 1.1.0
+
+customAuth :: (L.Request -> IO L.Request) -> Option scheme
+customAuth = Option mempty . pure
 
 ----------------------------------------------------------------------------
 -- Request—Optional parameters—Other

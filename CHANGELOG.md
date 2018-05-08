@@ -1,3 +1,8 @@
+## Req 1.1.0
+
+* Added `customAuth` and `attachHeader` to facilitate creation of custom
+  authentication options.
+
 ## Req 1.0.0
 
 * Added the `reqBr` function allowing to consume `Response BodyReader`
