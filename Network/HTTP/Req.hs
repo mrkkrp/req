@@ -178,6 +178,7 @@ module Network.HTTP.Req
     -- $authentication
   , basicAuth
   , basicAuthUnsafe
+  , basicProxyAuth
   , oAuth1
   , oAuth2Bearer
   , oAuth2Token
@@ -1283,6 +1284,17 @@ basicAuthUnsafe
   -> Option scheme     -- ^ Auth 'Option'
 basicAuthUnsafe username password = customAuth
   (pure . L.applyBasicAuth username password)
+
+-- | The 'Option' adds basic Proxy authentication
+--
+-- @since 1.1.0
+
+basicProxyAuth
+  :: ByteString       -- ^ Username
+  -> ByteString       -- ^ Password
+  -> Option scheme    -- ^ Auth 'Option'
+basicProxyAuth username password = asFinalizer
+  (pure . L.applyBasicProxyAuth username password)
 
 -- | The 'Option' adds OAuth1 authentication.
 --
