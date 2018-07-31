@@ -146,6 +146,7 @@ module Network.HTTP.Req
   , (/:)
   , parseUrlHttp
   , parseUrlHttps
+  , parseUrl
     -- ** Body
     -- $body
   , NoReqBody (..)
@@ -798,7 +799,8 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- $url
 --
 -- We use 'Url's which are correct by construction, see 'Url'. To build a
--- 'Url' from a 'ByteString', use 'parseUrlHttp' or 'parseUrlHttps'.
+-- 'Url' from a 'ByteString', use 'parseUrlHttp', 'parseUrlHttps' or
+-- generic 'parseUrl'.
 
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
 -- specifying the scheme and host at the same time. Then use the @('/~')@
@@ -883,6 +885,12 @@ parseUrlHttps url' = do
   url <- B.stripPrefix "https://" url'
   (host :| path, option) <- parseUrlHelper url
   return (foldl (/:) (https host) path, option)
+
+-- | 'parseUrlHttp' and 'parseUrlHttps' companion that can be used
+-- when scheme is not known beforehand.
+
+parseUrl :: ByteString -> Maybe (Either (Url 'Http, Option scheme) (Url 'Https, Option scheme))
+parseUrl url' = Left <$> parseUrlHttp url' <|> Right <$> parseUrlHttps url'
 
 -- | Get host\/collection of path pieces and possibly query parameters
 -- already converted to 'Option'. This function is not public.
