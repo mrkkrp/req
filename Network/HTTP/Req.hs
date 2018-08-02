@@ -799,7 +799,7 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- $url
 --
 -- We use 'Url's which are correct by construction, see 'Url'. To build a
--- 'Url' from a 'ByteString', use 'parseUrlHttp', 'parseUrlHttps' or
+-- 'Url' from a 'ByteString', use 'parseUrlHttp', 'parseUrlHttps', or
 -- generic 'parseUrl'.
 
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
@@ -886,11 +886,15 @@ parseUrlHttps url' = do
   (host :| path, option) <- parseUrlHelper url
   return (foldl (/:) (https host) path, option)
 
--- | 'parseUrlHttp' and 'parseUrlHttps' companion that can be used
--- when scheme is not known beforehand.
+-- | A more general URI parsing function that can be used when scheme is not
+-- known beforehand.
+--
+-- @since 1.2.0
 
-parseUrl :: ByteString -> Maybe (Either (Url 'Http, Option scheme) (Url 'Https, Option scheme))
-parseUrl url' = Left <$> parseUrlHttp url' <|> Right <$> parseUrlHttps url'
+parseUrl
+  :: ByteString
+  -> Maybe (Either (Url 'Http, Option scheme) (Url 'Https, Option scheme))
+parseUrl url = Left <$> parseUrlHttp url <|> Right <$> parseUrlHttps url
 
 -- | Get host\/collection of path pieces and possibly query parameters
 -- already converted to 'Option'. This function is not public.
