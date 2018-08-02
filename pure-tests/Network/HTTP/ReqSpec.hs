@@ -135,6 +135,33 @@ spec = do
         parseUrlHttp "https://my-site.com:bob/far" `shouldSatisfy` isNothing
         parseUrlHttp "https://my-site.com:7001uh/api" `shouldSatisfy` isNothing
         parseUrlHttp "https://my-site.com:/bar" `shouldSatisfy` isNothing
+    describe "parseUrl" $ do
+      it "does not recognize non-http and non-https schemes" $
+        parseUrl "ftp://httpbin.org" `shouldSatisfy` isNothing
+      it "parses correct http URLs" $
+        property $ \host mport' pieces queryParams -> do
+          let (url', path, queryString) =
+                assembleUrl Http host mport' pieces queryParams
+              Left (url'', options) = fromJust (parseUrl url')
+          request <- req_ GET url'' NoReqBody options
+          L.host        request `shouldBe` urlEncode (unHost host)
+          L.port        request `shouldBe` maybe 80 getNonNegative mport'
+          L.path        request `shouldBe` path
+          L.queryString request `shouldBe` queryString
+      it "parses correct https URLs" $
+        property $ \host mport' pieces queryParams -> do
+          let (url', path, queryString) =
+                assembleUrl Https host mport' pieces queryParams
+              Right (url'', options) = fromJust (parseUrl url')
+          request <- req_ GET url'' NoReqBody options
+          L.host        request `shouldBe` urlEncode (unHost host)
+          L.port        request `shouldBe` maybe 443 getNonNegative mport'
+          L.path        request `shouldBe` path
+          L.queryString request `shouldBe` queryString
+      it "rejects gibberish in port component" $ do
+        parseUrl "http://my-site.com:bob/far" `shouldSatisfy` isNothing
+        parseUrl "https://my-site.com:7001uh/api" `shouldSatisfy` isNothing
+        parseUrl "http://my-site.com:/bar" `shouldSatisfy` isNothing
 
   describe "bodies" $ do
     describe "NoReqBody" $
