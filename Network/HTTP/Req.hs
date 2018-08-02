@@ -889,11 +889,11 @@ parseUrlHttps url' = do
 -- | A more general URI parsing function that can be used when scheme is not
 -- known beforehand.
 --
--- @since 1.2.0
+-- @since 1.2.1
 
 parseUrl
   :: ByteString
-  -> Maybe (Either (Url 'Http, Option scheme) (Url 'Https, Option scheme))
+  -> Maybe (Either (Url 'Http, Option scheme0) (Url 'Https, Option scheme1))
 parseUrl url = Left <$> parseUrlHttp url <|> Right <$> parseUrlHttps url
 
 -- | Get host\/collection of path pieces and possibly query parameters

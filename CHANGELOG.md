@@ -1,3 +1,7 @@
+## Req 1.2.1
+
+* Fixed a typo in the type signature of `parseUrl`.
+
 ## Req 1.2.0
 
 * Added the `parseUrl` function.
