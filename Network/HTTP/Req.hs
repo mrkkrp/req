@@ -872,7 +872,7 @@ infixl 5 /:
 -- parameters that are returned as 'Option'. It does not parse method name
 -- or authentication info from given 'ByteString'.
 
-parseUrlHttp :: ByteString -> Maybe (Url 'Http, Option scheme)
+parseUrlHttp :: ByteString -> Maybe (Url 'Http, Option 'Http)
 parseUrlHttp url' = do
   url <- B.stripPrefix "http://" url'
   (host :| path, option) <- parseUrlHelper url
@@ -880,7 +880,7 @@ parseUrlHttp url' = do
 
 -- | Just like 'parseUrlHttp', but expects “https” scheme.
 
-parseUrlHttps :: ByteString -> Maybe (Url 'Https, Option scheme)
+parseUrlHttps :: ByteString -> Maybe (Url 'Https, Option 'Https)
 parseUrlHttps url' = do
   url <- B.stripPrefix "https://" url'
   (host :| path, option) <- parseUrlHelper url
@@ -893,7 +893,7 @@ parseUrlHttps url' = do
 
 parseUrl
   :: ByteString
-  -> Maybe (Either (Url 'Http, Option scheme) (Url 'Https, Option scheme))
+  -> Maybe (Either (Url 'Http, Option 'Http) (Url 'Https, Option 'Https))
 parseUrl url = Left <$> parseUrlHttp url <|> Right <$> parseUrlHttps url
 
 -- | Get host\/collection of path pieces and possibly query parameters
