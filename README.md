@@ -46,7 +46,7 @@ that just works without any fooling around.
 What does the phrase “easy-to-use” mean? It means that the library is
 designed to be beginner-friendly so it's simple to add to your monad stack,
 intuitive to work with, well-documented, and does not get in your way. Doing
-HTTP requests is a common task and a Haskell library for this should be very
+HTTP requests is a common task and Haskell library for this should be very
 approachable and clear to beginners, thus certain compromises were made. For
 example, one cannot currently modify `ManagerSettings` of the default
 manager because the library always uses the same implicit global manager for
@@ -58,7 +58,7 @@ classes of errors. For example, we have correct-by-construction URLs, it's
 guaranteed that the user does not send the request body when using methods
 like GET or OPTIONS, and the amount of implicit assumptions is minimized by
 making the user specify his/her intentions in an explicit form (for example,
-it's not possible to avoid specifying the body or method of a request).
+it's not possible to avoid specifying the body or method of request).
 Authentication methods that assume HTTPS force the user to use HTTPS at the
 type level. The library also carefully hides underlying types from the
 lower-level `http-client` package because those types are not safe enough
@@ -69,7 +69,7 @@ it will blow up at run-time).
 HTTP without having to resort to ugly hacking. For example, it's possible to
 define your own HTTP methods, create new ways to construct the body of a
 request, create new authorization options, perform a request in a different
-way, and create your own methods to parse and represent a response. As a
+way, and create your own methods to parse and represent a response. As the
 user extends the library to satisfy his/her special needs, the new solutions
 will work just like the built-ins. However, all of the common cases are also
 covered by the library out-of-the-box.
@@ -81,7 +81,7 @@ adapt easily to any particular style of writing Haskell applications. For
 example, some people prefer throwing exceptions, while others are concerned
 with purity. Just define `handleHttpException` accordingly when making your
 monad instance of `MonadHttp` and it will play together seamlessly. Finally,
-the library cuts boilerplate down considerably, and helps you write concise,
+the library cuts down boilerplate considerably, and helps you write concise,
 easy to read, and maintainable code.
 
 The library uses the following mature packages under the hood to guarantee
@@ -126,18 +126,18 @@ global implicit `Manager` (Req does the same). If I tried to frame what
 exactly I don't like about `http-conduit` in words, then it would be “the
 way requests are constructed”. You set, set, set instead of *being forced*
 to declare necessary bits and *being allowed* to declare optional bits in a
-way that their combination is certainly valid. And you parse request from a
-string without the protection of TH that otherwise saves the day as in
-Yesod.
+way that their combination is certainly valid. Also, with `http-conduit` you
+parse request from a string without the protection of TH that otherwise
+saves the day as in Yesod.
 
 Then there is Wreq. `wreq` [doesn't see much development
 lately](https://github.com/bos/wreq/issues/93). `wreq` is by itself a weird
 library, IMO. You have functions per method—not very good, as there may be
-new methods, like PATCH which is not new but still missing (well you have
+new methods, like PATCH which is not new but still missing (well, you have
 `customMethod`, but what is the point of having per-method functions if you
 have a more general way to use any method? you should be able to just insert
 methods in the “argument slot” of `customMethod` and end up with a more
-general solution). Now every method function has a companion that takes
+general solution). Now, every method function has a companion that takes
 `Options` (like you have `get` and `getWith`). Why the duplication? Where is
 generality and flexibility? This is not all though, because you cannot
 really use `get` you see in the main module, because you want to have
@@ -148,12 +148,12 @@ be shared and re-used. However with the session stuff you have yet another
 set of per-method functions like `get` and `getWith`—these are different
 ones, to be used with sessions! Now if you have a multi-threaded app, here
 is a surprise for you: you can't share connections between threads as
-connections are shared only inside `withSession` friend and “session will no
-longer be valid after that function returns”. There are valid uses for
-sessions, but the point is that they are just too inconvenient for common
-tasks.
+connections are shared only inside of the `withSession` friend and “session
+will no longer be valid after that function returns”. There are valid uses
+for sessions, but the point is that they are just too inconvenient for
+common tasks.
 
-It's funny that one client I worked for had to have his own little wrapper
+It's funny that one client I worked for had to invent his own little wrapper
 around `http-client` just because he could not possibly use `wreq` and
 `http-client` and friends were too low-level. The previous paragraph is
 extracted from a talk with a Haskell developer who works for that client. I
@@ -202,7 +202,7 @@ please submit a PR to include it in this list.
 Issues, bugs, and questions may be reported in [the GitHub issue tracker for
 this project](https://github.com/mrkkrp/req/issues).
 
-Pull requests are also welcome and will be reviewed quickly.
+Pull requests are also welcome.
 
 ## License
 

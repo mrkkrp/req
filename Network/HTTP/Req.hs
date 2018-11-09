@@ -24,7 +24,7 @@
 -- What does the phrase “easy-to-use” mean? It means that the library is
 -- designed to be beginner-friendly so it's simple to add to your monad
 -- stack, intuitive to work with, well-documented, and does not get in your
--- way. Doing HTTP requests is a common task and a Haskell library for this
+-- way. Doing HTTP requests is a common task and Haskell library for this
 -- should be very approachable and clear to beginners, thus certain
 -- compromises were made. For example, one cannot currently modify
 -- 'L.ManagerSettings' of the default manager because the library always
@@ -38,7 +38,7 @@
 -- methods like 'GET' or 'OPTIONS', and the amount of implicit assumptions
 -- is minimized by making the user specify his\/her intentions in an
 -- explicit form (for example, it's not possible to avoid specifying the
--- body or method of a request). Authentication methods that assume HTTPS
+-- body or method of request). Authentication methods that assume HTTPS
 -- force the user to use HTTPS at the type level. The library also carefully
 -- hides underlying types from the lower-level @http-client@ package because
 -- those types are not safe enough (for example 'L.Request' is an instance
@@ -50,7 +50,7 @@
 -- your own HTTP methods, create new ways to construct the body of a
 -- request, create new authorization options, perform a request in a
 -- different way, and create your own methods to parse and represent a
--- response. As a user extends the library to satisfy his\/her special
+-- response. As the user extends the library to satisfy his\/her special
 -- needs, the new solutions will work just like the built-ins. However, all
 -- of the common cases are also covered by the library out-of-the-box.
 --
@@ -61,7 +61,7 @@
 -- applications. For example, some people prefer throwing exceptions, while
 -- others are concerned with purity. Just define 'handleHttpException'
 -- accordingly when making your monad instance of 'MonadHttp' and it will
--- play together seamlessly. Finally, the library cuts boilerplate down
+-- play together seamlessly. Finally, the library cuts down boilerplate
 -- considerably, and helps you write concise, easy to read, and maintainable
 -- code.
 --
@@ -118,7 +118,7 @@ module Network.HTTP.Req
   , reqBr
   , req'
   , withReqManager
-    -- * Embedding requests into your monad
+    -- * Embedding requests in your monad
     -- $embedding-requests
   , MonadHttp  (..)
   , HttpConfig (..)
@@ -517,7 +517,7 @@ globalManager = unsafePerformIO $ do
 {-# NOINLINE globalManager #-}
 
 ----------------------------------------------------------------------------
--- Embedding requests into your monad
+-- Embedding requests in your monad
 
 -- $embedding-requests
 --
@@ -526,7 +526,7 @@ globalManager = unsafePerformIO $ do
 --
 -- When writing a library, keep your API polymorphic in terms of
 -- 'MonadHttp', only define instance of 'MonadHttp' in final application.
--- Another option is to use @newtype@ wrapped monad stack and define
+-- Another option is to use a @newtype@-wrapped monad stack and define
 -- 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad that follows
 -- this strategy is provided out-of-the-box (see below).
 
@@ -779,9 +779,9 @@ instance HttpMethod PATCH where
 class HttpMethod a where
 
   -- | Type function 'AllowsBody' returns a type of kind 'CanHaveBody' which
-  -- tells the rest of the library whether the method can have a body or
-  -- not. We use the special type 'CanHaveBody' lifted to the kind level
-  -- instead of 'Bool' to get more user-friendly compiler messages.
+  -- tells the rest of the library whether the method can have body or not.
+  -- We use the special type 'CanHaveBody' lifted to the kind level instead
+  -- of 'Bool' to get more user-friendly compiler messages.
 
   type AllowsBody a :: CanHaveBody
 
@@ -835,13 +835,13 @@ data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
   -- NOTE The second value is the path segments in reversed order.
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
--- | Given host name, produce a 'Url' which have “http” as its scheme and
+-- | Given host name, produce a 'Url' which has “http” as its scheme and
 -- empty path. This also sets port to @80@.
 
 http :: Text -> Url 'Http
 http = Url Http . pure
 
--- | Given host name, produce a 'Url' which have “https” as its scheme and
+-- | Given host name, produce a 'Url' which has “https” as its scheme and
 -- empty path. This also sets port to @443@.
 
 https :: Text -> Url 'Https
@@ -871,6 +871,8 @@ infixl 5 /:
 -- This function only parses 'Url' (scheme, host, path) and optional query
 -- parameters that are returned as 'Option'. It does not parse method name
 -- or authentication info from given 'ByteString'.
+--
+-- This function expected scheme to be “http”.
 
 parseUrlHttp :: ByteString -> Maybe (Url 'Http, Option scheme)
 parseUrlHttp url' = do
@@ -878,7 +880,7 @@ parseUrlHttp url' = do
   (host :| path, option) <- parseUrlHelper url
   return (foldl (/:) (http host) path, option)
 
--- | Just like 'parseUrlHttp', but expects “https” scheme.
+-- | Just like 'parseUrlHttp', but expects the “https” scheme.
 
 parseUrlHttps :: ByteString -> Maybe (Url 'Https, Option scheme)
 parseUrlHttps url' = do
@@ -933,8 +935,9 @@ instance RequestComponent (Url scheme) where
 --
 -- A number of options for request bodies are available. The @Content-Type@
 -- header is set for you automatically according to the body option you use
--- (it's always specified in documentation for a given body option). To add
--- your own way to represent request body, define an instance of 'HttpBody'.
+-- (it's always specified in the documentation for a given body option). To
+-- add your own way to represent request body, define an instance of
+-- 'HttpBody'.
 
 -- | This data type represents empty body of an HTTP request. This is the
 -- data type to use with 'HttpMethod's that cannot have a body, as it's the
@@ -1072,16 +1075,16 @@ class HttpBody body where
 
   getRequestBody :: body -> L.RequestBody
 
-  -- | This method allows to optionally specify value of @Content-Type@
-  -- header that should be used with particular body option. By default it
-  -- returns 'Nothing' and so @Content-Type@ is not set.
+  -- | This method allows us to optionally specify the value of
+  -- @Content-Type@ header that should be used with particular body option.
+  -- By default it returns 'Nothing' and so @Content-Type@ is not set.
 
   getRequestContentType :: body -> Maybe ByteString
   getRequestContentType = const Nothing
 
 -- | The type function recognizes 'NoReqBody' as having 'NoBody', while any
--- other body option 'CanHaveBody'. This forces user to use 'NoReqBody' with
--- 'GET' method and other methods that should not send a body.
+-- other body option 'CanHaveBody'. This forces the user to use 'NoReqBody'
+-- with 'GET' method and other methods that should not have body.
 
 type family ProvidesBody body :: CanHaveBody where
   ProvidesBody NoReqBody = 'NoBody
@@ -1119,7 +1122,7 @@ instance HttpBody body => RequestComponent (Womb "body" body) where
 
 -- $optional-parameters
 --
--- Optional parameters to a request include things like query parameters,
+-- Optional parameters of request include things like query parameters,
 -- headers, port number, etc. All optional parameters have the type
 -- 'Option', which is a 'Monoid'. This means that you can use 'mempty' as
 -- the last argument of 'req' to specify no optional parameters, or combine
@@ -1236,8 +1239,7 @@ header
   -> Option scheme
 header name value = withRequest (attachHeader name value)
 
--- | A non-public helper that attaches a header with given name and content
--- to a 'L.Request'.
+-- | Attach a header with given name and content to a 'L.Request'.
 --
 -- @since 1.1.0
 
@@ -1285,7 +1287,7 @@ basicAuth
 basicAuth = basicAuthUnsafe
 
 -- | An alternative to 'basicAuth' which works for any scheme. Note that
--- using basic access authentication without SSL/TLS is vulnerable to
+-- using basic access authentication without SSL\/TLS is vulnerable to
 -- attacks. Use 'basicAuth' instead unless you know what you are doing.
 --
 -- @since 0.3.1
