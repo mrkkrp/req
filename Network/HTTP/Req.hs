@@ -122,6 +122,7 @@ module Network.HTTP.Req
     -- $embedding-requests
   , MonadHttp  (..)
   , HttpConfig (..)
+  , defaultHttpConfig
   , Req
   , runReq
     -- * Request
@@ -224,7 +225,6 @@ import Control.Retry
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import Data.ByteString (ByteString)
 import Data.Data (Data)
-import Data.Default.Class
 import Data.Function (on)
 import Data.IORef
 import Data.List (nubBy)
@@ -318,7 +318,6 @@ import GHC.Exts (Constraint)
 -- > import Control.Monad
 -- > import Control.Monad.IO.Class
 -- > import Data.Aeson
--- > import Data.Default.Class
 -- > import Data.Maybe (fromJust)
 -- > import Data.Monoid ((<>))
 -- > import Data.Text (Text)
@@ -331,7 +330,7 @@ import GHC.Exts (Constraint)
 -- Make a GET request, grab 5 random bytes:
 --
 -- > main :: IO ()
--- > main = runReq def $ do
+-- > main = runReq defaultHttpConfig $ do
 -- >   let n :: Int
 -- >       n = 5
 -- >   bs <- req GET (https "httpbin.org" /: "bytes" /~ n) NoReqBody bsResponse mempty
@@ -341,7 +340,7 @@ import GHC.Exts (Constraint)
 -- seed of the generator:
 --
 -- > main :: IO ()
--- > main = runReq def $ do
+-- > main = runReq defaultHttpConfig $ do
 -- >   let n, seed :: Int
 -- >       n    = 5
 -- >       seed = 100
@@ -360,7 +359,7 @@ import GHC.Exts (Constraint)
 -- > instance FromJSON MyData
 -- >
 -- > main :: IO ()
--- > main = runReq def $ do
+-- > main = runReq defaultHttpConfig $ do
 -- >   let myData = MyData
 -- >         { size  = 6
 -- >         , color = "Green" }
@@ -370,7 +369,7 @@ import GHC.Exts (Constraint)
 -- Sending URL-encoded body:
 --
 -- > main :: IO ()
--- > main = runReq def $ do
+-- > main = runReq defaultHttpConfig $ do
 -- >   let params =
 -- >         "foo" =: ("bar" :: Text) <>
 -- >         queryFlag "baz"
@@ -380,7 +379,7 @@ import GHC.Exts (Constraint)
 -- Using various optional parameters and URL that is not known in advance:
 --
 -- > main :: IO ()
--- > main = runReq def $ do
+-- > main = runReq defaultHttpConfig $ do
 -- >   -- This is an example of what to do when URL is given dynamically. Of
 -- >   -- course in a real application you may not want to use 'fromJust'.
 -- >   let (url, options) = fromJust (parseUrlHttps "https://httpbin.org/get?foo=bar")
@@ -511,7 +510,10 @@ withReqManager m = liftIO (readIORef globalManager) >>= m
 globalManager :: IORef L.Manager
 globalManager = unsafePerformIO $ do
   context <- NC.initConnectionContext
-  let settings = L.mkManagerSettingsContext (Just context) def Nothing
+  let settings = L.mkManagerSettingsContext
+        (Just context)
+        (NC.TLSSettingsSimple False False False)
+        Nothing
   manager <- L.newManager settings
   newIORef manager
 {-# NOINLINE globalManager #-}
@@ -552,7 +554,7 @@ class MonadIO m => MonadHttp m where
   -- approach to configuration is desirable.
 
   getHttpConfig :: m HttpConfig
-  getHttpConfig = return def
+  getHttpConfig = return defaultHttpConfig
 
 -- | 'HttpConfig' contains general and default settings to be used when
 -- making HTTP requests.
@@ -615,28 +617,32 @@ data HttpConfig = HttpConfig
     -- @since 0.3.0
   } deriving Typeable
 
-instance Default HttpConfig where
-  def = HttpConfig
-    { httpConfigProxy         = Nothing
-    , httpConfigRedirectCount = 10
-    , httpConfigAltManager    = Nothing
-    , httpConfigCheckResponse = \_ response preview ->
-        let scode = statusCode response
-        in if 200 <= scode && scode < 300
-             then Nothing
-             else Just (L.StatusCodeException (void response) preview)
-    , httpConfigRetryPolicy  = def
-    , httpConfigRetryJudge   = \_ response ->
-        statusCode response `elem`
-          [ 408 -- Request timeout
-          , 504 -- Gateway timeout
-          , 524 -- A timeout occurred
-          , 598 -- (Informal convention) Network read timeout error
-          , 599 -- (Informal convention) Network connect timeout error
-          ]
-    }
-    where
-      statusCode = Y.statusCode . L.responseStatus
+-- | Default value of 'HttpConfig'.
+--
+-- @since 2.0.0
+
+defaultHttpConfig :: HttpConfig
+defaultHttpConfig = HttpConfig
+  { httpConfigProxy         = Nothing
+  , httpConfigRedirectCount = 10
+  , httpConfigAltManager    = Nothing
+  , httpConfigCheckResponse = \_ response preview ->
+      let scode = statusCode response
+      in if 200 <= scode && scode < 300
+           then Nothing
+           else Just (L.StatusCodeException (void response) preview)
+  , httpConfigRetryPolicy  = retryPolicyDefault
+  , httpConfigRetryJudge   = \_ response ->
+      statusCode response `elem`
+        [ 408 -- Request timeout
+        , 504 -- Gateway timeout
+        , 524 -- A timeout occurred
+        , 598 -- (Informal convention) Network read timeout error
+        , 599 -- (Informal convention) Network connect timeout error
+        ]
+  }
+  where
+    statusCode = Y.statusCode . L.responseStatus
 
 instance RequestComponent HttpConfig where
   getRequestMod HttpConfig {..} = Endo $ \x ->

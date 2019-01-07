@@ -14,9 +14,9 @@ module Network.HTTP.ReqSpec
 where
 
 import Control.Exception (throwIO)
+import Control.Retry
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
-import Data.Default.Class
 import Data.Maybe (isNothing, fromJust)
 import Data.Monoid ((<>))
 import Data.Proxy
@@ -266,7 +266,7 @@ spec = do
             (oAuth2Bearer token0 <> oAuth2Bearer token1)
           lookup "Authorization" (L.requestHeaders request) `shouldBe`
             pure ("Bearer " <> token0)
-    describe "ProxyAuthorization" $ do
+    describe "ProxyAuthorization" $
       it "sets Authorization header to correct value" $
         property $ \username password -> do
           request <- req_ GET url NoReqBody (basicProxyAuth username password)
@@ -326,7 +326,7 @@ instance Arbitrary HttpConfig where
     httpConfigRedirectCount <- arbitrary
     let httpConfigAltManager          = Nothing
         httpConfigCheckResponse _ _ _ = Nothing
-        httpConfigRetryPolicy         = def
+        httpConfigRetryPolicy         = retryPolicyDefault
         httpConfigRetryJudge      _ _ = False
     return HttpConfig {..}
 

@@ -1,3 +1,8 @@
+## Req 2.0.0
+
+* Got rid of `data-default-class` dependency, now we export
+  `defaultHttpConfig` instead.
+
 ## Req 1.2.1
 
 * Fixed a typo in the type signature of `parseUrl`.
