@@ -13,7 +13,6 @@ import Control.Exception
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (Value (..), ToJSON (..), object, (.=))
-import Data.Default.Class
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
@@ -41,7 +40,7 @@ spec = do
 
   describe "exception throwing on non-2xx status codes (Req monad)" $
     it "throws indeed for non-2xx" $
-      asIO . runReq def $
+      asIO . runReq defaultHttpConfig $
         liftBaseWith $ \run ->
           run (req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty)
             `shouldThrow` selector404
@@ -322,14 +321,14 @@ instance MonadHttp IO where
 -- response status codes.
 
 prepareForShit :: Req a -> IO a
-prepareForShit = runReq def { httpConfigCheckResponse = noNoise }
+prepareForShit = runReq defaultHttpConfig { httpConfigCheckResponse = noNoise }
   where
     noNoise _ _ _ = Nothing
 
 -- | Run request with such settings that it throws on any response.
 
 blindlyThrowing :: Req a -> IO a
-blindlyThrowing = runReq def { httpConfigCheckResponse = doit }
+blindlyThrowing = runReq defaultHttpConfig { httpConfigCheckResponse = doit }
   where
     doit _ _ = error "Oops!"
 

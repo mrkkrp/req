@@ -20,13 +20,12 @@ module Main (main) where
 
 import Control.Monad.IO.Class
 import Data.Aeson
-import Data.Default.Class
 import Network.HTTP.Req
 
 main :: IO ()
 -- You can either make your monad an instance of 'MonadHttp', or use
 -- 'runReq' in any IO-enabled monad without defining new instances.
-main = runReq def $ do
+main = runReq defaultHttpConfig $ do
   let payload = object
         [ "foo" .= (10 :: Int)
         , "bar" .= (20 :: Int) ]
