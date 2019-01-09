@@ -36,7 +36,7 @@ library
                     , connection       >= 0.2.2  && < 0.3
                     , data-default-class
                     , http-api-data    >= 0.2    && < 0.5
-                    , http-client      >= 0.5    && < 0.6
+                    , http-client      >= 0.5    && < 0.7
                     , http-client-tls  >= 0.3.2  && < 0.4
                     , http-types       >= 0.8    && < 10.0
                     , monad-control    >= 1.0    && < 1.1
@@ -75,7 +75,7 @@ test-suite pure-tests
                     , data-default-class
                     , hspec            >= 2.0    && < 3.0
                     , hspec-core       >= 2.0    && < 3.0
-                    , http-client      >= 0.5    && < 0.6
+                    , http-client      >= 0.5    && < 0.7
                     , http-types       >= 0.8    && < 10.0
                     , mtl              >= 2.0    && < 3.0
                     , req
@@ -99,7 +99,7 @@ test-suite httpbin-tests
                     , bytestring       >= 0.10.8 && < 0.11
                     , data-default-class
                     , hspec            >= 2.0    && < 3.0
-                    , http-client      >= 0.5    && < 0.6
+                    , http-client      >= 0.5    && < 0.7
                     , http-types       >= 0.8    && < 10.0
                     , monad-control    >= 1.0    && < 1.1
                     , mtl              >= 2.0    && < 3.0
