@@ -67,7 +67,6 @@ spec = do
       stripFunnyHeaders (responseBody r) `shouldBe` object
         [ "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
-          , "Connection"      .= ("close"       :: Text)
           , "Foo"             .= ("bar"         :: Text)
           , "Baz"             .= ("quux"        :: Text)
           , "Host"            .= ("httpbin.org" :: Text) ] ]
@@ -82,7 +81,6 @@ spec = do
         , "url"  .= ("https://httpbin.org/get" :: Text)
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"        :: Text)
-          , "Connection"      .= ("close"       :: Text)
           , "Host"            .= ("httpbin.org" :: Text) ] ]
       responseHeader r "Content-Type" `shouldBe` return "application/json"
       responseStatusCode    r `shouldBe` 200
@@ -101,7 +99,6 @@ spec = do
         , "headers" .= object
           [ "Content-Type"   .= ("application/json; charset=utf-8" :: Text)
           , "Accept-Encoding" .= ("gzip"       :: Text)
-          , "Connection"      .= ("close"      :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
           , "Content-Length" .= show (T.length reflected) ]
         , "files" .= emptyObject
@@ -125,7 +122,6 @@ spec = do
         , "headers" .= object
           [ "Content-Type"    .= T.decodeUtf8 contentType
           , "Accept-Encoding" .= ("gzip"       :: Text)
-          , "Connection"      .= ("close"      :: Text)
           , "Host"            .= ("httpbin.org" :: Text)
           , "Content-Length"  .= ("242" :: Text)
           ]
@@ -151,7 +147,6 @@ spec = do
         , "url"   .= ("https://httpbin.org/patch" :: Text)
         , "headers" .= object
           [ "Accept-Encoding" .= ("gzip"       :: Text)
-          , "Connection"      .= ("close"      :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
           , "Content-Length" .= show (T.length contents) ]
         , "files" .= emptyObject
@@ -174,7 +169,6 @@ spec = do
         , "headers" .= object
           [ "Content-Type"   .= ("application/x-www-form-urlencoded" :: Text)
           , "Accept-Encoding" .= ("gzip"       :: Text)
-          , "Connection"      .= ("close"      :: Text)
           , "Host"           .= ("httpbin.org" :: Text)
           , "Content-Length" .= ("18"          :: Text) ]
         , "files" .= emptyObject
@@ -352,7 +346,6 @@ stripFunnyHeaders (Object m) =
       f value      = value
       hs = [ "Content-Type"
            , "Accept-Encoding"
-           , "Connection"
            , "Host"
            , "Content-Length"
            , "Foo"
