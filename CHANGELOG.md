@@ -1,3 +1,7 @@
+## Req 2.0.1
+
+* Fixed the `httpbin` tests (they changed something on the server again).
+
 ## Req 2.0.0
 
 * Got rid of `data-default-class` dependency, now we export
