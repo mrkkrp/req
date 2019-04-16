@@ -311,6 +311,7 @@ import GHC.Exts (Constraint)
 -- First, this is a piece of boilerplate that should be in place before you
 -- try the examples:
 --
+-- > {-# LANGUAGE DeriveGeneric     #-}
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- >
 -- > module Main (main) where
