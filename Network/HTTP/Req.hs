@@ -89,7 +89,6 @@
 -- @wreq@. The only difference is the API.
 
 {-# LANGUAGE BangPatterns               #-}
-{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
@@ -102,14 +101,8 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
-
-#if MIN_VERSION_base(4,9,0)
 {-# LANGUAGE UndecidableInstances       #-}
-#endif
-
-#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
-#endif
 
 module Network.HTTP.Req
   ( -- * Making a request
@@ -217,6 +210,7 @@ where
 
 import Control.Applicative
 import Control.Arrow (first, second)
+import Control.Exception hiding (TypeError)
 import Control.Monad.Base
 import Control.Monad.IO.Class
 import Control.Monad.Reader
@@ -227,6 +221,7 @@ import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Function (on)
 import Data.IORef
+import Data.Kind (Constraint)
 import Data.List (nubBy)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
@@ -254,14 +249,6 @@ import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Client.TLS      as L
 import qualified Network.HTTP.Types           as Y
 import qualified Web.Authenticate.OAuth       as OAuth
-
-#if MIN_VERSION_base(4,9,0)
-import Control.Exception hiding (TypeError)
-import Data.Kind (Constraint)
-#else
-import Control.Exception
-import GHC.Exts (Constraint)
-#endif
 
 ----------------------------------------------------------------------------
 -- Making a request
@@ -1109,10 +1096,8 @@ type family HttpBodyAllowed
   (providesBody :: CanHaveBody) :: Constraint where
   HttpBodyAllowed 'NoBody      'NoBody = ()
   HttpBodyAllowed 'CanHaveBody body    = ()
-#if MIN_VERSION_base(4,9,0)
   HttpBodyAllowed 'NoBody 'CanHaveBody = TypeError
     ('Text "This HTTP method does not allow attaching a request body.")
-#endif
 
 instance HttpBody body => RequestComponent (Womb "body" body) where
   getRequestMod (Womb body) = Endo $ \x ->
