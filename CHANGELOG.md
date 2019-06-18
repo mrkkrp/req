@@ -1,6 +1,10 @@
-## Unreleased
+## Req 2.2.0
 
 * Dropped support for GHC 7.10.
+
+* Added the new `acceptHeader` method to the `HttpResponse` type class.
+  Notably, the `jsonResponse` method now sets `"Accept"` header to
+  `"application/json"`.
 
 ## Req 2.0.1
 

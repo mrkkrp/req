@@ -102,7 +102,6 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
-{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
 module Network.HTTP.Req
   ( -- * Making a request
@@ -391,8 +390,13 @@ req
   -> Proxy response    -- ^ A hint how to interpret response
   -> Option scheme     -- ^ Collection of optional parameters
   -> m response        -- ^ Response
-req method url body Proxy options =
-  reqBr method url body options getHttpResponse
+req method url body responseProxy options =
+  reqBr method url body (options <> extraOptions) getHttpResponse
+  where
+    extraOptions =
+      case acceptHeader responseProxy of
+        Nothing -> mempty
+        Just accept -> header "Accept" accept
 
 -- | A version of 'req' that does not use one of the predefined instances of
 -- 'HttpResponse' but instead allows the user to consume @'L.Response'
@@ -1440,6 +1444,7 @@ instance FromJSON a => HttpResponse (JsonResponse a) where
     case A.eitherDecode (BL.fromChunks chunks) of
       Left  e -> throwIO (JsonHttpException e)
       Right x -> return $ JsonResponse (x <$ r)
+  acceptHeader Proxy = Just "application/json"
 
 -- | Use this as the fourth argument of 'req' to specify that you want it to
 -- return the 'JsonResponse' interpretation.
@@ -1636,6 +1641,18 @@ class HttpResponse response where
        -- ^ Response with body reader inside
     -> IO response
        -- ^ The final result
+
+  -- | The value of @\"Accept\"@ header. This is useful, for example, if a
+  -- website supports both @XML@ and @JSON@ responses, and decides what to
+  -- reply with based on what @Accept@ headers you have sent.
+  --
+  -- __Note__: manually specified 'Options' that set the @\"Accept\"@ header
+  -- will take precedence.
+  --
+  -- @since 2.2.0
+
+  acceptHeader :: Proxy response -> Maybe ByteString
+  acceptHeader Proxy = Nothing
 
 ----------------------------------------------------------------------------
 -- Other
