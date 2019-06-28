@@ -1,4 +1,4 @@
-## Req 2.2.0
+## Req 2.1.0
 
 * Dropped support for GHC 7.10.
 

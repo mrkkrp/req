@@ -1649,7 +1649,7 @@ class HttpResponse response where
   -- __Note__: manually specified 'Options' that set the @\"Accept\"@ header
   -- will take precedence.
   --
-  -- @since 2.2.0
+  -- @since 2.1.0
 
   acceptHeader :: Proxy response -> Maybe ByteString
   acceptHeader Proxy = Nothing
