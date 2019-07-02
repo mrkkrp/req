@@ -1,3 +1,7 @@
+## Unreleased
+
+* Dropped support for GHC 8.0.
+
 ## Req 2.1.0
 
 * Dropped support for GHC 7.10.
