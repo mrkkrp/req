@@ -1,6 +1,6 @@
 -- |
 -- Module      :  Network.HTTP.Req
--- Copyright   :  © 2016–2019 Mark Karpov
+-- Copyright   :  © 2016–present Mark Karpov
 -- License     :  BSD 3 clause
 --
 -- Maintainer  :  Mark Karpov <markkarpov92@gmail.com>
