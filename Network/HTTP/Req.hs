@@ -853,7 +853,7 @@ infixl 5 /~
 Url secure path /~ segment = Url secure (NE.cons (toUrlPiece segment) path)
 
 -- | Type-constrained version of @('/~')@ to remove ambiguity in the cases
--- when next URL piece is a 'Text' literal.
+-- when next URL piece is a 'Data.Text.Text' literal.
 
 infixl 5 /:
 (/:) :: Url scheme -> Text -> Url scheme
