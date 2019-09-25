@@ -220,7 +220,7 @@ import Data.ByteString (ByteString)
 import Data.Data (Data)
 import Data.Function (on)
 import Data.IORef
-import Data.Kind (Constraint)
+import Data.Kind (Constraint, Type)
 import Data.List (nubBy)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
@@ -1616,7 +1616,7 @@ class HttpResponse response where
   -- | The associated type is the type of body that can be extracted from an
   -- instance of 'HttpResponse'.
 
-  type HttpResponseBody response :: *
+  type HttpResponseBody response :: Type
 
   -- | The method describes how to get the underlying 'L.Response' record.
 

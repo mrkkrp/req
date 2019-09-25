@@ -18,7 +18,6 @@ import Control.Retry
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
 import Data.Maybe (isNothing, fromJust)
-import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text (Text)
 import Data.Time
@@ -38,6 +37,10 @@ import qualified Data.Text.Encoding       as T
 import qualified Network.HTTP.Client      as L
 import qualified Network.HTTP.Types       as Y
 import qualified Network.HTTP.Types.Header as Y
+
+#if !MIN_VERSION_base(4,13,0)
+import Data.Semigroup ((<>))
+#endif
 
 spec :: Spec
 spec = do
