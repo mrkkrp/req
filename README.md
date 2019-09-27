@@ -99,13 +99,13 @@ only difference is the API.
 ## Motivation and Req vs other libraries
 
 *This section is my opinion and it contains criticisms of other well-known
-libraries. If you're user/fan of one of these libraries, please remember not
-to react aggressively and respect the fact that I may have different views
-on API design from yours.*
+libraries. If you're a user/fan of one of these libraries, please remember
+not to react aggressively and respect the fact that I may have different
+views on API design from yours.*
 
-I have spent time to write the library because sending HTTP requests is such
-a common thing and still there is no high-level library for that in Haskell
-that I could use with pleasure. I'll explain why.
+I have spent time to write the library because sending HTTP requests is a
+common need, but there is no high-level library for that in Haskell that I
+could use with pleasure. I'll explain why.
 
 First of all, there is `http-client` and `http-client-tls`. They just work.
 I have no issues with the libraries except that they are too low-level for
@@ -123,9 +123,9 @@ API”, it's mostly the same as vanilla `http-client` in spirit/approach and
 just adds `conduit`-powered functions to perform requests and allows to use
 global implicit `Manager` (Req does the same). If I tried to frame what
 exactly I don't like about `http-conduit` in words, then it would be “the
-way requests are constructed”. You set, set, set instead of *being forced*
-to declare necessary bits and *being allowed* to declare optional bits in a
-way that their combination is certainly valid. Also, with `http-conduit` you
+way requests are constructed”. You *set* parameters instead of *being
+forced* to declare necessary bits and *being allowed* to declare optional
+bits in a way that their combination is valid. Also, with `http-conduit` you
 parse request from a string without the protection of TH that otherwise
 saves the day as in Yesod.
 
@@ -152,17 +152,9 @@ will no longer be valid after that function returns”. There are valid uses
 for sessions, but the point is that they are just too inconvenient for
 common tasks.
 
-It's funny that one client I worked for had to invent his own little wrapper
-around `http-client` just because he could not possibly use `wreq` and
-`http-client` and friends were too low-level. The previous paragraph is
-extracted from a talk with a Haskell developer who works for that client. I
-thought to myself “something is wrong with HTTP client libraries in Haskell
-if they had to make a wrapper”.
-
-What else? I used `servant-client` a couple of times but the amount of
-boilerplate it requires is frightening. If you have several query
-parameters, and you use just one of them, good luck passing lots of
-`Nothing`s.
+I used `servant-client` a couple of times but the amount of boilerplate it
+requires is frightening. If you have several query parameters, and you use
+just one of them, you'll have to pass lots of `Nothing`s.
 
 ## Unsolved problems
 
