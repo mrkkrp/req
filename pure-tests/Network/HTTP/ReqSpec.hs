@@ -2,8 +2,10 @@
 {-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
@@ -14,10 +16,12 @@ module Network.HTTP.ReqSpec
 where
 
 import Control.Exception (throwIO)
+import Control.Monad
 import Control.Retry
 import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString)
-import Data.Maybe (isNothing, fromJust)
+import Data.Either (isRight)
+import Data.Maybe (isNothing, fromJust, fromMaybe)
 import Data.Proxy
 import Data.Text (Text)
 import Data.Time
@@ -26,17 +30,21 @@ import Network.HTTP.Req
 import Test.Hspec
 import Test.Hspec.Core.Spec (SpecM)
 import Test.QuickCheck
+import Text.URI (URI)
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.Aeson               as A
 import qualified Data.ByteString          as B
 import qualified Data.ByteString.Char8    as B8
 import qualified Data.ByteString.Lazy     as BL
 import qualified Data.CaseInsensitive     as CI
+import qualified Data.List.NonEmpty       as NE
 import qualified Data.Text                as T
 import qualified Data.Text.Encoding       as T
 import qualified Network.HTTP.Client      as L
 import qualified Network.HTTP.Types       as Y
 import qualified Network.HTTP.Types.Header as Y
+import qualified Text.URI                 as URI
+import qualified Text.URI.QQ              as QQ
 
 #if !MIN_VERSION_base(4,13,0)
 import Data.Semigroup ((<>))
@@ -104,67 +112,70 @@ spec = do
           request <- req_ GET url' NoReqBody mempty
           L.host request `shouldBe` urlEncode host
           L.path request `shouldBe` encodePathPieces pieces
-    describe "parseUrlHttp" $ do
+
+    describe "useHttpURI" $ do
       it "does not recognize non-http schemes" $
-        parseUrlHttp "https://httpbin.org" `shouldSatisfy` isNothing
-      it "parses correct URLs" $
-        property $ \host mport' pieces queryParams -> do
-          let (url', path, queryString) =
-                assembleUrl Http host mport' pieces queryParams
-              (url'', options) = fromJust (parseUrlHttp url')
-          request <- req_ GET url'' NoReqBody options
-          L.host        request `shouldBe` urlEncode (unHost host)
-          L.port        request `shouldBe` maybe 80 getNonNegative mport'
-          L.path        request `shouldBe` path
-          L.queryString request `shouldBe` queryString
-      it "rejects gibberish in port component" $ do
-        parseUrlHttp "http://my-site.com:bob/far" `shouldSatisfy` isNothing
-        parseUrlHttp "http://my-site.com:7001uh/api" `shouldSatisfy` isNothing
-        parseUrlHttp "http://my-site.com:/bar" `shouldSatisfy` isNothing
-    describe "parseUrlHttps" $ do
+        property $ \uri ->
+          when (URI.uriScheme uri /= Just [QQ.scheme|http|]) $
+            useHttpURI uri `shouldSatisfy` isNothing
+      it "accepts correct URLs" $
+        property $ \uri' -> do
+          unless (isRight (URI.uriAuthority uri')) discard
+          let uri = uri' { URI.uriScheme = Just [QQ.scheme|http|] }
+              (url', options) = fromJust (useHttpURI uri)
+          request <- req_ GET url' NoReqBody options
+          L.host request `shouldBe` uriHost uri
+          L.port request `shouldBe` uriPort 80 uri
+          L.path request `shouldBe` uriPath uri
+          L.queryString request `shouldBe` uriQuery uri
+          lookup "Authorization" (L.requestHeaders request)
+            `shouldBe` uriBasicAuth uri
+    describe "useHttpsURI" $ do
       it "does not recognize non-https schemes" $
-        parseUrlHttps "http://httpbin.org" `shouldSatisfy` isNothing
+        property $ \uri ->
+          when (URI.uriScheme uri /= Just [QQ.scheme|https|]) $
+            useHttpsURI uri `shouldSatisfy` isNothing
       it "parses correct URLs" $
-        property $ \host mport' pieces queryParams -> do
-          let (url', path, queryString) =
-                assembleUrl Https host mport' pieces queryParams
-              (url'', options) = fromJust (parseUrlHttps url')
-          request <- req_ GET url'' NoReqBody options
-          L.host        request `shouldBe` urlEncode (unHost host)
-          L.port        request `shouldBe` maybe 443 getNonNegative mport'
-          L.path        request `shouldBe` path
-          L.queryString request `shouldBe` queryString
-      it "rejects gibberish in port component" $ do
-        parseUrlHttp "https://my-site.com:bob/far" `shouldSatisfy` isNothing
-        parseUrlHttp "https://my-site.com:7001uh/api" `shouldSatisfy` isNothing
-        parseUrlHttp "https://my-site.com:/bar" `shouldSatisfy` isNothing
-    describe "parseUrl" $ do
+        property $ \uri' -> do
+          unless (isRight (URI.uriAuthority uri')) discard
+          let uri = uri' { URI.uriScheme = Just [QQ.scheme|https|] }
+              (url', options) = fromJust (useHttpsURI uri)
+          request <- req_ GET url' NoReqBody options
+          L.host request `shouldBe` uriHost uri
+          L.port request `shouldBe` uriPort 443 uri
+          L.path request `shouldBe` uriPath uri
+          L.queryString request `shouldBe` uriQuery uri
+          lookup "Authorization" (L.requestHeaders request)
+            `shouldBe` uriBasicAuth uri
+    describe "useURI" $ do
       it "does not recognize non-http and non-https schemes" $
-        parseUrl "ftp://httpbin.org" `shouldSatisfy` isNothing
-      it "parses correct http URLs" $
-        property $ \host mport' pieces queryParams -> do
-          let (url', path, queryString) =
-                assembleUrl Http host mport' pieces queryParams
-              Left (url'', options) = fromJust (parseUrl url')
-          request <- req_ GET url'' NoReqBody options
-          L.host        request `shouldBe` urlEncode (unHost host)
-          L.port        request `shouldBe` maybe 80 getNonNegative mport'
-          L.path        request `shouldBe` path
-          L.queryString request `shouldBe` queryString
-      it "parses correct https URLs" $
-        property $ \host mport' pieces queryParams -> do
-          let (url', path, queryString) =
-                assembleUrl Https host mport' pieces queryParams
-              Right (url'', options) = fromJust (parseUrl url')
-          request <- req_ GET url'' NoReqBody options
-          L.host        request `shouldBe` urlEncode (unHost host)
-          L.port        request `shouldBe` maybe 443 getNonNegative mport'
-          L.path        request `shouldBe` path
-          L.queryString request `shouldBe` queryString
-      it "rejects gibberish in port component" $ do
-        parseUrl "http://my-site.com:bob/far" `shouldSatisfy` isNothing
-        parseUrl "https://my-site.com:7001uh/api" `shouldSatisfy` isNothing
-        parseUrl "http://my-site.com:/bar" `shouldSatisfy` isNothing
+        property $ \uri ->
+          when ((URI.uriScheme uri /= Just [QQ.scheme|http|] &&
+                (URI.uriScheme uri /= Just [QQ.scheme|https|]))) $
+            useURI uri `shouldSatisfy` isNothing
+      it "parses correct URLs" $
+        property $ \uri' -> do
+          unless (isRight (URI.uriAuthority uri')) discard
+          let uriHttp = uri' { URI.uriScheme = Just [QQ.scheme|http|] }
+              uriHttps = uri' { URI.uriScheme = Just [QQ.scheme|https|] }
+          requestHttp <-
+            let Left (url', options) = fromJust (useURI uriHttp)
+            in req_ GET url' NoReqBody options
+          requestHttps <-
+            let Right (url', options) = fromJust (useURI uriHttps)
+            in req_ GET url' NoReqBody options
+          L.host requestHttp `shouldBe` uriHost uriHttp
+          L.host requestHttps `shouldBe` uriHost uriHttps
+          L.port requestHttp `shouldBe` uriPort 80 uriHttp
+          L.port requestHttps `shouldBe` uriPort 443 uriHttps
+          L.path requestHttp `shouldBe` uriPath uriHttp
+          L.path requestHttps `shouldBe` uriPath uriHttps
+          L.queryString requestHttp `shouldBe` uriQuery uriHttp
+          L.queryString requestHttps `shouldBe` uriQuery uriHttps
+          lookup "Authorization" (L.requestHeaders requestHttp)
+            `shouldBe` uriBasicAuth uriHttp
+          lookup "Authorization" (L.requestHeaders requestHttps)
+            `shouldBe` uriBasicAuth uriHttps
 
   describe "bodies" $ do
     describe "NoReqBody" $
@@ -228,24 +239,22 @@ spec = do
         property $ \username password -> do
           request <- req_ GET url NoReqBody (basicAuth username password)
           lookup "Authorization" (L.requestHeaders request) `shouldBe`
-            pure (basicAuthHeader username password)
+            Just (basicAuthHeader username password)
       it "overwrites manual setting of header" $
         property $ \username password value -> do
           request0 <- req_ GET url NoReqBody
             (basicAuth username password <> header "Authorization" value)
           request1 <- req_ GET url NoReqBody
             (header "Authorization" value <> basicAuth username password)
-          let result = basicAuthHeader username password
-          lookup "Authorization" (L.requestHeaders request0) `shouldBe`
-            pure result
-          lookup "Authorization" (L.requestHeaders request1) `shouldBe`
-            pure result
+          let result = Just (basicAuthHeader username password)
+          lookup "Authorization" (L.requestHeaders request0) `shouldBe` result
+          lookup "Authorization" (L.requestHeaders request1) `shouldBe` result
       it "left auth option wins" $
         property $ \username0 password0 username1 password1 -> do
           request <- req_ GET url NoReqBody
             (basicAuth username0 password0 <> basicAuth username1 password1)
           lookup "Authorization" (L.requestHeaders request) `shouldBe`
-            pure (basicAuthHeader username0 password0)
+            Just (basicAuthHeader username0 password0)
     describe "oAuth2Bearer" $ do
       it "sets Authorization header to correct value" $
         property $ \token -> do
@@ -447,28 +456,47 @@ urlEncode = Y.urlEncode False . T.encodeUtf8
 encodePathPieces :: [Text] -> ByteString
 encodePathPieces = BL.toStrict . BB.toLazyByteString . Y.encodePathSegments
 
--- | Assemble a URL.
+-- | Get host from a 'URI'. This function is not total.
 
-assembleUrl
-  :: Scheme            -- ^ Scheme
-  -> Host              -- ^ Host
-  -> Maybe (NonNegative Int) -- ^ Port
-  -> [Text]            -- ^ Path pieces
-  -> QueryParams       -- ^ Query parameters
-  -> (ByteString, ByteString, ByteString) -- ^ URL, path, query string
-assembleUrl scheme' (Host host') mport' pathPieces (QueryParams queryParams) =
-  (scheme <> host <> port' <> path <> queryString, path, queryString)
-  where
-    scheme = case scheme' of
-      Http  -> "http://"
-      Https -> "https://"
-    host        = urlEncode host'
-    port'       =
-      case mport' of
-        Nothing -> ""
-        Just (NonNegative x) -> ":" <> B8.pack (show x)
-    path        = encodePathPieces pathPieces
-    queryString = Y.renderQuery True (Y.queryTextToQuery queryParams)
+uriHost :: URI -> ByteString
+uriHost uri = fromJust $
+  urlEncode . URI.unRText . URI.authHost
+    <$> either (const Nothing) Just (URI.uriAuthority uri)
+
+-- | Get part from a 'URI' defaulting to the provided value.
+
+uriPort :: Int -> URI -> Int
+uriPort def uri = maybe def (fromIntegral) $
+  either (const Nothing) Just (URI.uriAuthority uri) >>= URI.authPort
+
+-- | Get path from 'URI'.
+
+uriPath :: URI -> ByteString
+uriPath uri = fromMaybe "" $ do
+  (_, xs) <- URI.uriPath uri
+  (return . encodePathPieces . fmap URI.unRText . NE.toList) xs
+
+-- | Get query string from 'URI'.
+
+uriQuery :: URI -> ByteString
+uriQuery uri = do
+  let liftQueryParam = \case
+        URI.QueryFlag t -> (URI.unRText t, Nothing)
+        URI.QueryParam k v -> (URI.unRText k, Just (URI.unRText v))
+  Y.renderQuery True (Y.queryTextToQuery (liftQueryParam <$> (URI.uriQuery uri)))
+
+-- | Predict the headrs that should be set if the given 'URI' has username
+-- and password in it.
+
+uriBasicAuth :: URI -> Maybe ByteString
+uriBasicAuth uri = do
+  auth <- either (const Nothing) Just (URI.uriAuthority uri)
+  URI.UserInfo {..} <- URI.authUserInfo auth
+  let username = T.encodeUtf8 (URI.unRText uiUsername)
+      password = maybe "" (T.encodeUtf8 . URI.unRText) uiPassword
+  return (basicAuthHeader username password)
+
+-- | Render a query as lazy 'BL.ByteString'.
 
 renderQuery :: [(Text, Maybe Text)] -> BL.ByteString
 renderQuery = BL.fromStrict . Y.renderQuery False . Y.queryTextToQuery
