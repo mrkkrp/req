@@ -95,8 +95,10 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -137,9 +139,9 @@ module Network.HTTP.Req
   , https
   , (/~)
   , (/:)
-  , parseUrlHttp
-  , parseUrlHttps
-  , parseUrl
+  , useHttpURI
+  , useHttpsURI
+  , useURI
     -- ** Body
     -- $body
   , NoReqBody (..)
@@ -221,7 +223,7 @@ import Data.Data (Data)
 import Data.Function (on)
 import Data.IORef
 import Data.Kind (Constraint, Type)
-import Data.List (nubBy)
+import Data.List (nubBy, foldl')
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
 import Data.Proxy
@@ -231,6 +233,7 @@ import Data.Typeable (Typeable)
 import GHC.Generics
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
+import Text.URI (URI)
 import Web.HttpApiData (ToHttpApiData (..))
 import qualified Blaze.ByteString.Builder     as BB
 import qualified Data.Aeson                   as A
@@ -238,15 +241,15 @@ import qualified Data.ByteString              as B
 import qualified Data.ByteString.Lazy         as BL
 import qualified Data.CaseInsensitive         as CI
 import qualified Data.List.NonEmpty           as NE
-import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
-import qualified Data.Text.Read               as TR
 import qualified Network.Connection           as NC
 import qualified Network.HTTP.Client          as L
 import qualified Network.HTTP.Client.Internal as LI
 import qualified Network.HTTP.Client.MultipartFormData as LM
 import qualified Network.HTTP.Client.TLS      as L
 import qualified Network.HTTP.Types           as Y
+import qualified Text.URI                     as URI
+import qualified Text.URI.QQ                  as QQ
 import qualified Web.Authenticate.OAuth       as OAuth
 
 ----------------------------------------------------------------------------
@@ -311,6 +314,7 @@ import qualified Web.Authenticate.OAuth       as OAuth
 -- > import GHC.Generics
 -- > import Network.HTTP.Req
 -- > import qualified Data.ByteString.Char8 as B
+-- > import qualified Text.URI as URI
 --
 -- We will be making requests against the <https://httpbin.org> service.
 --
@@ -369,7 +373,8 @@ import qualified Web.Authenticate.OAuth       as OAuth
 -- > main = runReq defaultHttpConfig $ do
 -- >   -- This is an example of what to do when URL is given dynamically. Of
 -- >   -- course in a real application you may not want to use 'fromJust'.
--- >   let (url, options) = fromJust (parseUrlHttps "https://httpbin.org/get?foo=bar")
+-- >   uri <- URI.mkURI "https://httpbin.org/get?foo=bar"
+-- >   let (url, options) = fromJust (useHttpsURI uri)
 -- >   response <- req GET url NoReqBody jsonResponse $
 -- >     "from" =: (15 :: Int)           <>
 -- >     "to"   =: (67 :: Int)           <>
@@ -797,8 +802,7 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 -- $url
 --
 -- We use 'Url's which are correct by construction, see 'Url'. To build a
--- 'Url' from a 'ByteString', use 'parseUrlHttp', 'parseUrlHttps', or
--- generic 'parseUrl'.
+-- 'Url' from a 'URI', use 'useHttpURI', 'useHttpsURI', or generic 'useURI'.
 
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
 -- specifying the scheme and host at the same time. Then use the @('/~')@
@@ -859,59 +863,92 @@ infixl 5 /:
 (/:) :: Url scheme -> Text -> Url scheme
 (/:) = (/~)
 
--- | The 'parseUrlHttp' function provides an alternative method to get 'Url'
--- (possibly with some 'Option's) from a 'ByteString'. This is useful when
--- you are given a URL to query dynamically and don't know it beforehand.
--- The function parses 'ByteString' because it's the correct type to
--- represent a URL, as 'Url' cannot contain characters outside of ASCII
--- range, thus we can consider every character a 'Data.Word.Word8' value.
+-- | The 'useHttpURI' function provides an alternative method to get 'Url'
+-- (possibly with some 'Option's) from a 'URI'. This is useful when you are
+-- given a URL to query dynamically and don't know it beforehand.
 --
--- This function only parses 'Url' (scheme, host, path) and optional query
--- parameters that are returned as 'Option'. It does not parse method name
--- or authentication info from given 'ByteString'.
+-- This function expects the scheme to be “http” and host to be present.
 --
--- This function expected scheme to be “http”.
+-- @since 3.0.0
 
-parseUrlHttp :: ByteString -> Maybe (Url 'Http, Option scheme)
-parseUrlHttp url' = do
-  url <- B.stripPrefix "http://" url'
-  (host :| path, option) <- parseUrlHelper url
-  return (foldl (/:) (http host) path, option)
+useHttpURI :: URI -> Maybe (Url 'Http, Option scheme)
+useHttpURI uri = do
+  guard (URI.uriScheme uri == Just [QQ.scheme|http|])
+  urlHead <- http <$> uriHost uri
+  let url = case URI.uriPath uri of
+        Nothing -> urlHead
+        Just (_, xs) ->
+          foldl' (/:) urlHead (URI.unRText <$> NE.toList xs)
+  return (url, uriOptions uri)
 
--- | Just like 'parseUrlHttp', but expects the “https” scheme.
+-- | Just like 'useHttpURI', but expects the “https” scheme.
+--
+-- @since 3.0.0
 
-parseUrlHttps :: ByteString -> Maybe (Url 'Https, Option scheme)
-parseUrlHttps url' = do
-  url <- B.stripPrefix "https://" url'
-  (host :| path, option) <- parseUrlHelper url
-  return (foldl (/:) (https host) path, option)
+useHttpsURI :: URI -> Maybe (Url 'Https, Option scheme)
+useHttpsURI uri = do
+  guard (URI.uriScheme uri == Just [QQ.scheme|https|])
+  urlHead <- https <$> uriHost uri
+  let url = case URI.uriPath uri of
+        Nothing -> urlHead
+        Just (_, xs) ->
+          foldl' (/:) urlHead (URI.unRText <$> NE.toList xs)
+  return (url, uriOptions uri)
 
 -- | A more general URI parsing function that can be used when scheme is not
 -- known beforehand.
 --
--- @since 1.2.1
+-- @since 3.0.0
 
-parseUrl
-  :: ByteString
-  -> Maybe (Either (Url 'Http, Option scheme0) (Url 'Https, Option scheme1))
-parseUrl url = Left <$> parseUrlHttp url <|> Right <$> parseUrlHttps url
+useURI
+  :: URI
+  -> Maybe (Either (Url 'Http, Option scheme0)
+                   (Url 'Https, Option scheme1))
+useURI uri =
+  (Left <$> useHttpURI uri) <|> (Right <$> useHttpsURI uri)
 
--- | Get host\/collection of path pieces and possibly query parameters
--- already converted to 'Option'. This function is not public.
+-- | An internal helper function to extract host from a 'URI'.
 
-parseUrlHelper :: ByteString -> Maybe (NonEmpty Text, Option scheme)
-parseUrlHelper url = do
-  let (path', query') = B.break (== 0x3f) url
-      query = mconcat (uncurry queryParam <$> Y.parseQueryText query')
-  p' :| ps <- NE.nonEmpty (Y.decodePathSegments path')
-  (p, port') <-
-    case T.break (== ':') p' of
-      (x, "") -> return (x, mempty)
-      (x, prt) ->
-        case TR.decimal (T.drop 1 prt) of
-          Right (prt',"") -> return (x, port prt')
-          _               -> Nothing
-  return (p :| ps, query <> port')
+uriHost :: URI -> Maybe Text
+uriHost uri = case URI.uriAuthority uri of
+  Left _ -> Nothing
+  Right URI.Authority {..} ->
+    Just (URI.unRText authHost)
+
+-- | An internal helper function to extract 'Option's from a 'URI'.
+
+uriOptions :: forall scheme. URI -> Option scheme
+uriOptions uri = mconcat
+  [ auth
+  , query
+  , port'
+  -- , fragment'
+  ]
+  where
+    (auth, port') =
+      case URI.uriAuthority uri of
+        Left _ -> (mempty, mempty)
+        Right URI.Authority {..} ->
+          let auth0 = case authUserInfo of
+                Nothing -> mempty
+                Just URI.UserInfo {..} ->
+                  let username = T.encodeUtf8 (URI.unRText uiUsername)
+                      password = maybe "" (T.encodeUtf8 . URI.unRText) uiPassword
+                  in basicAuthUnsafe username password
+              port0 = case authPort of
+                Nothing -> mempty
+                Just port'' -> port (fromIntegral port'')
+          in (auth0, port0)
+    query =
+      let liftQueryParam = \case
+            URI.QueryFlag t -> queryFlag (URI.unRText t)
+            URI.QueryParam k v -> URI.unRText k =: URI.unRText v
+      in mconcat (liftQueryParam <$> URI.uriQuery uri)
+    -- TODO Blocked on upstream: https://github.com/snoyberg/http-client/issues/424
+    -- fragment' =
+    --   case URI.uriFragment uri of
+    --     Nothing -> mempty
+    --     Just fragment'' -> fragment (URI.unRText fragment'')
 
 instance RequestComponent (Url scheme) where
   getRequestMod (Url scheme segments) = Endo $ \x ->

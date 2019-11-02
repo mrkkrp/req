@@ -1,4 +1,13 @@
-## Unreleased
+## Req 3.0.0
+
+* Dropped functions `parseUrlHttp`, `parseUrlHttps`, and `parseUrl`. Instead
+  we now have `useHttpURI`, `useHttpsURI`, and `useURI` take `URI`s from
+  `modern-uri` as their argument. You first parse your URL with the
+  `modern-uri` package and then pass it to those functions. This allows us
+  to work with typed URI representations and seamlessly convert them to
+  something `req` can work with. As a side effect basic auth from the `URI`s
+  is now taken into consideration. In the future we may also start to
+  respect fragments if `http-client` starts to support this.
 
 * Dropped support for GHC 8.2 and older.
 
