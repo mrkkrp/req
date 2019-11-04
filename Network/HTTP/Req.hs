@@ -895,8 +895,8 @@ useHttpsURI uri = do
           foldl' (/:) urlHead (URI.unRText <$> NE.toList xs)
   return (url, uriOptions uri)
 
--- | A more general URI parsing function that can be used when scheme is not
--- known beforehand.
+-- | A combination of 'useHttpURI' and 'useHttpsURI' for cases when scheme
+-- is not known in advance.
 --
 -- @since 3.0.0
 
