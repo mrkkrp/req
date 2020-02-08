@@ -1,3 +1,7 @@
+## Req 3.1.0
+
+* Changed signature of `httpConfigRetryPolicy` to `RetryPolicyM IO`.
+
 ## Req 3.0.0
 
 * Dropped functions `parseUrlHttp`, `parseUrlHttps`, and `parseUrl`. Instead
