@@ -596,7 +596,7 @@ data HttpConfig = HttpConfig
     -- /1.0.0/.
     --
     -- @since 0.3.0
-  , httpConfigRetryPolicy :: RetryPolicy
+  , httpConfigRetryPolicy :: RetryPolicyM IO
     -- ^ The retry policy to use for request retrying. By default 'def' is
     -- used (see 'RetryPolicyM').
     --
