@@ -465,7 +465,7 @@ req'
   -> (L.Request -> L.Manager -> m a) -- ^ How to perform request
   -> m a               -- ^ Result
 req' method url body options m = do
-  config@HttpConfig {..}  <- getHttpConfig
+  config <- getHttpConfig
   let -- NOTE First appearance of any given header wins. This allows to
       -- “overwrite” headers when we construct a request by cons-ing.
       nubHeaders = Endo $ \x ->
