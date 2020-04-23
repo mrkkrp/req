@@ -1,111 +1,127 @@
-name:                 req
-version:              3.1.0
-cabal-version:        1.18
-tested-with:          GHC==8.6.5, GHC==8.8.3, GHC==8.10.1
-license:              BSD3
-license-file:         LICENSE.md
-author:               Mark Karpov <markkarpov92@gmail.com>
-maintainer:           Mark Karpov <markkarpov92@gmail.com>
-homepage:             https://github.com/mrkkrp/req
-bug-reports:          https://github.com/mrkkrp/req/issues
-category:             Network, Web
-synopsis:             Easy-to-use, type-safe, expandable, high-level HTTP client library
-build-type:           Simple
-description:          Easy-to-use, type-safe, expandable, high-level HTTP client library.
-extra-doc-files:      CHANGELOG.md
-                    , README.md
-data-files:           httpbin-data/utf8.html
-                    , httpbin-data/robots.txt
+cabal-version:   1.18
+name:            req
+version:         3.1.0
+license:         BSD3
+license-file:    LICENSE.md
+maintainer:      Mark Karpov <markkarpov92@gmail.com>
+author:          Mark Karpov <markkarpov92@gmail.com>
+tested-with:     ghc ==8.6.5 ghc ==8.8.3 ghc ==8.10.1
+homepage:        https://github.com/mrkkrp/req
+bug-reports:     https://github.com/mrkkrp/req/issues
+synopsis:
+    Easy-to-use, type-safe, expandable, high-level HTTP client library
+
+description:
+    Easy-to-use, type-safe, expandable, high-level HTTP client library.
+
+category:        Network, Web
+build-type:      Simple
+data-files:
+    httpbin-data/utf8.html
+    httpbin-data/robots.txt
+
+extra-doc-files:
+    CHANGELOG.md
+    README.md
 
 source-repository head
-  type:               git
-  location:           https://github.com/mrkkrp/req.git
+    type:     git
+    location: https://github.com/mrkkrp/req.git
 
 flag dev
-  description:        Turn on development settings.
-  manual:             True
-  default:            False
+    description: Turn on development settings.
+    default:     False
+    manual:      True
 
 library
-  build-depends:      aeson            >= 0.9    && < 1.5
-                    , authenticate-oauth >= 1.5  && < 1.7
-                    , base             >= 4.12   && < 5.0
-                    , blaze-builder    >= 0.3    && < 0.5
-                    , bytestring       >= 0.10.8 && < 0.11
-                    , case-insensitive >= 0.2    && < 1.3
-                    , connection       >= 0.2.2  && < 0.4
-                    , http-api-data    >= 0.2    && < 0.5
-                    , http-client      >= 0.5    && < 0.7
-                    , http-client-tls  >= 0.3.2  && < 0.4
-                    , http-types       >= 0.8    && < 10.0
-                    , modern-uri       >= 0.3    && < 0.4
-                    , monad-control    >= 1.0    && < 1.1
-                    , mtl              >= 2.0    && < 3.0
-                    , retry            >= 0.8    && < 0.9
-                    , text             >= 0.2    && < 1.3
-                    , time             >= 1.2    && < 1.10
-                    , transformers     >= 0.4    && < 0.6
-                    , transformers-base
-  exposed-modules:    Network.HTTP.Req
-  if flag(dev)
-    ghc-options:      -O0 -Wall -Werror
-  else
-    ghc-options:      -O2 -Wall
-  if flag(dev)
-    ghc-options:      -Wcompat
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wnoncanonical-monad-instances
-  default-language:   Haskell2010
+    exposed-modules:  Network.HTTP.Req
+    default-language: Haskell2010
+    build-depends:
+        aeson >=0.9 && <1.5,
+        authenticate-oauth >=1.5 && <1.7,
+        base >=4.12 && <5.0,
+        blaze-builder >=0.3 && <0.5,
+        bytestring >=0.10.8 && <0.11,
+        case-insensitive >=0.2 && <1.3,
+        connection >=0.2.2 && <0.4,
+        http-api-data >=0.2 && <0.5,
+        http-client >=0.5 && <0.7,
+        http-client-tls >=0.3.2 && <0.4,
+        http-types >=0.8 && <10.0,
+        modern-uri >=0.3 && <0.4,
+        monad-control >=1.0 && <1.1,
+        mtl >=2.0 && <3.0,
+        retry >=0.8 && <0.9,
+        text >=0.2 && <1.3,
+        time >=1.2 && <1.10,
+        transformers >=0.4 && <0.6,
+        transformers-base -any
+
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+
+    else
+        ghc-options: -O2 -Wall
+
+    if flag(dev)
+        ghc-options:
+            -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+            -Wnoncanonical-monad-instances
 
 test-suite pure-tests
-  main-is:            Spec.hs
-  other-modules:      Network.HTTP.ReqSpec
-  hs-source-dirs:     pure-tests
-  type:               exitcode-stdio-1.0
-  build-depends:      QuickCheck       >= 2.7    && < 3.0
-                    , aeson            >= 0.9    && < 1.5
-                    , base             >= 4.12   && < 5.0
-                    , blaze-builder    >= 0.3    && < 0.5
-                    , bytestring       >= 0.10.8 && < 0.11
-                    , case-insensitive >= 0.2    && < 1.3
-                    , hspec            >= 2.0    && < 3.0
-                    , hspec-core       >= 2.0    && < 3.0
-                    , http-client      >= 0.5    && < 0.7
-                    , http-types       >= 0.8    && < 10.0
-                    , modern-uri       >= 0.3    && < 0.4
-                    , mtl              >= 2.0    && < 3.0
-                    , req
-                    , retry            >= 0.8    && < 0.9
-                    , text             >= 0.2    && < 1.3
-                    , time             >= 1.2    && < 1.10
-  build-tools:        hspec-discover   >= 2.0    && < 3.0
-  if flag(dev)
-    ghc-options:      -O0 -Wall -Werror
-  else
-    ghc-options:      -O2 -Wall
-  default-language:   Haskell2010
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    build-tools:      hspec-discover >=2.0 && <3.0
+    hs-source-dirs:   pure-tests
+    other-modules:    Network.HTTP.ReqSpec
+    default-language: Haskell2010
+    build-depends:
+        QuickCheck >=2.7 && <3.0,
+        aeson >=0.9 && <1.5,
+        base >=4.12 && <5.0,
+        blaze-builder >=0.3 && <0.5,
+        bytestring >=0.10.8 && <0.11,
+        case-insensitive >=0.2 && <1.3,
+        hspec >=2.0 && <3.0,
+        hspec-core >=2.0 && <3.0,
+        http-client >=0.5 && <0.7,
+        http-types >=0.8 && <10.0,
+        modern-uri >=0.3 && <0.4,
+        mtl >=2.0 && <3.0,
+        req -any,
+        retry >=0.8 && <0.9,
+        text >=0.2 && <1.3,
+        time >=1.2 && <1.10
+
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+
+    else
+        ghc-options: -O2 -Wall
 
 test-suite httpbin-tests
-  main-is:            Spec.hs
-  other-modules:      Network.HTTP.ReqSpec
-  hs-source-dirs:     httpbin-tests
-  type:               exitcode-stdio-1.0
-  build-depends:      QuickCheck       >= 2.7    && < 3.0
-                    , aeson            >= 0.9    && < 1.5
-                    , base             >= 4.12   && < 5.0
-                    , bytestring       >= 0.10.8 && < 0.11
-                    , hspec            >= 2.0    && < 3.0
-                    , http-client      >= 0.5    && < 0.7
-                    , http-types       >= 0.8    && < 10.0
-                    , monad-control    >= 1.0    && < 1.1
-                    , mtl              >= 2.0    && < 3.0
-                    , req
-                    , text             >= 0.2    && < 1.3
-                    , unordered-containers >= 0.2.5 && < 0.2.11
-  build-tools:        hspec-discover   >= 2.0    && < 3.0
-  if flag(dev)
-    ghc-options:      -O0 -Wall -Werror
-  else
-    ghc-options:      -O2 -Wall
-  default-language:   Haskell2010
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    build-tools:      hspec-discover >=2.0 && <3.0
+    hs-source-dirs:   httpbin-tests
+    other-modules:    Network.HTTP.ReqSpec
+    default-language: Haskell2010
+    build-depends:
+        QuickCheck >=2.7 && <3.0,
+        aeson >=0.9 && <1.5,
+        base >=4.12 && <5.0,
+        bytestring >=0.10.8 && <0.11,
+        hspec >=2.0 && <3.0,
+        http-client >=0.5 && <0.7,
+        http-types >=0.8 && <10.0,
+        monad-control >=1.0 && <1.1,
+        mtl >=2.0 && <3.0,
+        req -any,
+        text >=0.2 && <1.3,
+        unordered-containers >=0.2.5 && <0.2.11
+
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+
+    else
+        ghc-options: -O2 -Wall
