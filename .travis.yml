@@ -7,12 +7,6 @@ cache:
     - ~/.cabal/packages
     - ~/.cabal/store
 
-env:
-  global:
-    # To avoid re-compilation it is important to use exactly the same
-    # configuration for all steps.
-    - CABAL_CONFIG="--enable-tests --enable-benchmarks --flags=dev"
-
 matrix:
   include:
     - env: CABALVER=3.0 GHCVER=8.6.5
@@ -31,11 +25,14 @@ install:
   - travis_retry cabal new-update
 
 script:
+  # To avoid re-compilation it is important to use exactly the same
+  # configuration for all steps.
+  - export CONFIG="--enable-tests --enable-benchmarks --flags=dev"
   - cabal format
   - git diff --exit-code --color=always
-  - cabal new-build $CABAL_CONFIG
-  - cabal new-test $CABAL_CONFIG
-  - cabal new-haddock $CABAL_CONFIG
+  - cabal new-build $CONFIG
+  - cabal new-test $CONFIG
+  - cabal new-haddock $CONFIG
   - cabal new-sdist
 
 notifications:
