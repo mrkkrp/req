@@ -5,10 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Network.HTTP.ReqSpec
-  ( spec,
-  )
-where
+module Network.HTTP.ReqSpec (spec) where
 
 import Control.Exception
 import Control.Monad.Reader

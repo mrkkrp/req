@@ -11,10 +11,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Network.HTTP.ReqSpec
-  ( spec,
-  )
-where
+module Network.HTTP.ReqSpec (spec) where
 
 import qualified Blaze.ByteString.Builder as BB
 import Control.Exception (throwIO)
