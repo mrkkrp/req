@@ -3,20 +3,23 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- |
 -- Module      :  Network.HTTP.Req
@@ -257,7 +260,7 @@ import Data.Semigroup hiding (Option, option)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Typeable (Typeable, cast)
+import Data.Typeable ((:~:) (..), Typeable, cast, eqT)
 import GHC.Generics
 import GHC.TypeLits
 import qualified Language.Haskell.TH as TH
@@ -866,17 +869,31 @@ instance HttpMethod method => RequestComponent (Womb "method" method) where
 --
 -- > https "юникод.рф"
 -- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
-data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
-  -- NOTE The second value is the path segments in reversed order.
-  deriving (Eq, Ord, Show, Data, Typeable, Generic)
+data Url (scheme :: Scheme) = Typeable scheme => Url' (NonEmpty Text)
 
--- With template-haskell >=2.15 and text >=1.2.4 Lift can be derived, however
--- the derived lift forgets the type of scheme.
+-- NOTE The value is the path segments in reversed order.
+deriving instance Eq (Url scheme)
+
+deriving instance Ord (Url scheme)
+
+deriving instance Show (Url scheme)
+
+deriving instance Typeable scheme => Data (Url scheme)
+
+deriving instance Typeable (Url scheme)
+
+pattern Url :: SScheme scheme -> NonEmpty Text -> Url scheme
+pattern Url scheme pieces <-
+  ((\(Url' p) -> (sScheme, p)) -> (scheme, pieces))
+  where
+    Url SHttp pieces = Url' pieces
+    Url SHttps pieces = Url' pieces
+
+{-# COMPLETE Url #-}
+
+-- Can be derived as of template-haskell >= 2.15 and text >= 1.2.4
 instance Typeable scheme => TH.Lift (Url scheme) where
-  lift url =
-    TH.dataToExpQ (fmap liftText . cast) url `TH.sigE` case url of
-      Url Http _ -> [t|Url 'Http|]
-      Url Https _ -> [t|Url 'Https|]
+  lift url = TH.dataToExpQ (fmap liftText . cast) url
     where
       liftText t = TH.AppE (TH.VarE 'T.pack) <$> TH.lift (T.unpack t)
 
@@ -887,12 +904,12 @@ instance Typeable scheme => TH.Lift (Url scheme) where
 -- | Given host name, produce a 'Url' which has “http” as its scheme and
 -- empty path. This also sets port to @80@.
 http :: Text -> Url 'Http
-http = Url Http . pure
+http = Url SHttp . pure
 
 -- | Given host name, produce a 'Url' which has “https” as its scheme and
 -- empty path. This also sets port to @443@.
 https :: Text -> Url 'Https
-https = Url Https . pure
+https = Url SHttps . pure
 
 -- | Grow given 'Url' appending a single path segment to it. Note that the
 -- path segment can be of any type that is an instance of 'ToHttpApiData'.
@@ -1023,11 +1040,11 @@ instance RequestComponent (Url scheme) where
     let (host :| path) = NE.reverse segments
      in x
           { L.secure = case scheme of
-              Http -> False
-              Https -> True,
+              SHttp -> False
+              SHttps -> True,
             L.port = case scheme of
-              Http -> 80
-              Https -> 443,
+              SHttp -> 80
+              SHttps -> 443,
             L.host = Y.urlEncode False (T.encodeUtf8 host),
             L.path =
               (BL.toStrict . BB.toLazyByteString . Y.encodePathSegments) path
@@ -1801,7 +1818,17 @@ data Scheme
     Http
   | -- | HTTPS
     Https
-  deriving (Eq, Ord, Show, Data, Typeable, Generic, TH.Lift)
+
+-- | Singleton type for 'Scheme'.
+data SScheme (scheme :: Scheme) where
+  SHttp :: SScheme 'Http
+  SHttps :: SScheme 'Https
+
+sScheme :: forall scheme. Typeable scheme => SScheme scheme
+sScheme
+  | Just Refl <- eqT @scheme @'Http = SHttp
+  | Just Refl <- eqT @scheme @'Https = SHttps
+  | otherwise = error "unreachable"
 
 ----------------------------------------------------------------------------
 -- Constants
