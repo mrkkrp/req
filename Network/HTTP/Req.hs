@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
@@ -12,6 +14,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -145,6 +148,7 @@ module Network.HTTP.Req
     useHttpURI,
     useHttpsURI,
     useURI,
+    urlQ,
 
     -- ** Body
     -- $body
@@ -251,10 +255,14 @@ import Data.Maybe (fromMaybe)
 import Data.Proxy
 import Data.Semigroup hiding (Option, option)
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Typeable (Typeable)
+import Data.Typeable (Typeable, cast)
 import GHC.Generics
 import GHC.TypeLits
+import qualified Language.Haskell.TH as TH
+import qualified Language.Haskell.TH.Quote as TH
+import qualified Language.Haskell.TH.Syntax as TH
 import qualified Network.Connection as NC
 import qualified Network.HTTP.Client as L
 import qualified Network.HTTP.Client.Internal as LI
@@ -862,6 +870,20 @@ data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
   -- NOTE The second value is the path segments in reversed order.
   deriving (Eq, Ord, Show, Data, Typeable, Generic)
 
+-- With template-haskell >=2.15 and text >=1.2.4 Lift can be derived, however
+-- the derived lift forgets the type of scheme.
+instance Typeable scheme => TH.Lift (Url scheme) where
+  lift url =
+    TH.dataToExpQ (fmap liftText . cast) url `TH.sigE` case url of
+      Url Http _ -> [t|Url 'Http|]
+      Url Https _ -> [t|Url 'Https|]
+    where
+      liftText t = TH.AppE (TH.VarE 'T.pack) <$> TH.lift (T.unpack t)
+
+#if MIN_VERSION_template_haskell(2,16,0)
+  liftTyped url = TH.TExp <$> TH.lift url
+#endif
+
 -- | Given host name, produce a 'Url' which has “http” as its scheme and
 -- empty path. This also sets port to @80@.
 http :: Text -> Url 'Http
@@ -936,6 +958,27 @@ uriHost uri = case URI.uriAuthority uri of
   Left _ -> Nothing
   Right URI.Authority {..} ->
     Just (URI.unRText authHost)
+
+-- | A quasiquoter to build an 'Url' and 'Option' tuple. The type of the
+-- generated expression is `('Url' <scheme1>, 'Option' scheme2)` with
+-- `<scheme1>` being either `Http` or `Https` depending on the input.
+urlQ :: TH.QuasiQuoter
+urlQ =
+  TH.QuasiQuoter
+    { quoteExp = \str ->
+        case URI.mkURI (T.pack str) of
+          Left err -> fail (displayException err)
+          Right uri -> case useURI uri of
+            Nothing -> fail "Not a HTTP or HTTPS URL"
+            Just eurl ->
+              TH.tupE
+                [ either (TH.lift . fst) (TH.lift . fst) eurl,
+                  [|uriOptions uri|]
+                ],
+      quotePat = error "This usage is not supported",
+      quoteType = error "This usage is not supported",
+      quoteDec = error "This usage is not supported"
+    }
 
 -- | An internal helper function to extract 'Option's from a 'URI'.
 uriOptions :: forall scheme. URI -> Option scheme
@@ -1756,7 +1799,7 @@ data Scheme
     Http
   | -- | HTTPS
     Https
-  deriving (Eq, Ord, Show, Data, Typeable, Generic)
+  deriving (Eq, Ord, Show, Data, Typeable, Generic, TH.Lift)
 
 ----------------------------------------------------------------------------
 -- Constants
