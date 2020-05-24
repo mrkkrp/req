@@ -1,3 +1,7 @@
+## Unreleased
+
+* Added a quasiquoter for URL creation, `urlQ`.
+
 ## Req 3.1.0
 
 * Changed signature of `httpConfigRetryPolicy` to `RetryPolicyM IO`.

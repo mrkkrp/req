@@ -960,8 +960,10 @@ uriHost uri = case URI.uriAuthority uri of
     Just (URI.unRText authHost)
 
 -- | A quasiquoter to build an 'Url' and 'Option' tuple. The type of the
--- generated expression is `('Url' <scheme1>, 'Option' scheme2)` with
--- `<scheme1>` being either `Http` or `Https` depending on the input.
+-- generated expression is @('Url' scheme0, 'Option' scheme1)@ with
+-- @scheme0@ being either 'Http' or 'Https' depending on the input.
+--
+-- @since 3.2.0
 urlQ :: TH.QuasiQuoter
 urlQ =
   TH.QuasiQuoter
