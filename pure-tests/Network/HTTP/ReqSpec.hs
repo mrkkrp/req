@@ -8,6 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -26,13 +27,16 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 import Data.Either (isRight)
 import qualified Data.List.NonEmpty as NE
-import Data.Maybe (fromJust, fromMaybe, isNothing)
+import Data.Maybe (fromJust, fromMaybe, isJust, isNothing)
 import Data.Proxy
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
+import Data.Typeable (Typeable, eqT)
 import GHC.Generics
+import qualified Language.Haskell.TH as TH
+import qualified Language.Haskell.TH.Quote as TH
 import qualified Network.HTTP.Client as L
 import Network.HTTP.Req
 import qualified Network.HTTP.Types as Y
@@ -408,6 +412,19 @@ spec = do
       $ \major minor -> do
         request <- req_ GET url NoReqBody (httpVersion major minor)
         L.requestVersion request `shouldBe` Y.HttpVersion major minor
+
+    describe "quasiquoter" $ do
+      it "works for valid urls" $
+        -- Doing it this way instead of just checking if [urlQ|...|] :: (Url
+        -- 'Https, Option _) type checks, so we can catch if the type of scheme
+        -- is unspecified.
+        let testTypeOfQuoterResult ::
+              forall a s. Typeable a => (a, Option s) -> Bool
+            testTypeOfQuoterResult _ = isJust $ eqT @a @(Url 'Https)
+         in property $ testTypeOfQuoterResult [urlQ|https://example.org/|]
+      it "doesn't work for invalid urls"
+        $ property
+        $ TH.runQ (TH.quoteExp urlQ "not a url") `shouldThrow` anyIOException
 
 ----------------------------------------------------------------------------
 -- Instances
