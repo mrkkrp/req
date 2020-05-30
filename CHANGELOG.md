@@ -1,5 +1,7 @@
 ## Unreleased
 
+* Made the tests pass with `http-client-0.7` and later.
+
 * Added a quasiquoter for URL creation, `urlQ`.
 
 ## Req 3.1.0
