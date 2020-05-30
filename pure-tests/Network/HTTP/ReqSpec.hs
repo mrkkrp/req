@@ -263,7 +263,11 @@ spec = do
       $ property
       $ \cjar -> do
         request <- req_ GET url NoReqBody (cookieJar cjar)
-        L.cookieJar request `shouldBe` pure cjar
+#if MIN_VERSION_http_client(0,7,0)
+        L.cookieJar request `shouldSatisfy` (maybe False (L.equalCookieJar cjar))
+#else
+        L.cookieJar request `shouldBe` Just cjar
+#endif
     describe "basicAuth" $ do
       it "sets Authorization header to correct value"
         $ property
