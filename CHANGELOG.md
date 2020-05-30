@@ -1,4 +1,4 @@
-## Unreleased
+## Req 3.2.0
 
 * Made the tests pass with `http-client-0.7` and later.
 
