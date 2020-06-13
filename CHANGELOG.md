@@ -1,3 +1,8 @@
+## Req 3.3.0
+
+* Derived `Show` instances for response types `IgnoreResponse`,
+  `JsonResponse`, `BsResponse`, and `LbsResponse`.
+
 ## Req 3.2.0
 
 * Made the tests pass with `http-client-0.7` and later.
