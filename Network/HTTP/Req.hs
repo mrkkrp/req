@@ -1526,6 +1526,7 @@ httpVersion major minor = withRequest $ \x ->
 
 -- | Make a request and ignore the body of the response.
 newtype IgnoreResponse = IgnoreResponse (L.Response ())
+  deriving (Show)
 
 instance HttpResponse IgnoreResponse where
   type HttpResponseBody IgnoreResponse = ()
@@ -1542,6 +1543,7 @@ ignoreResponse = Proxy
 -- monad in which you use 'req' will determine what to do in the case when
 -- parsing fails (the 'JsonHttpException' constructor will be used).
 newtype JsonResponse a = JsonResponse (L.Response a)
+  deriving (Show)
 
 instance FromJSON a => HttpResponse (JsonResponse a) where
   type HttpResponseBody (JsonResponse a) = a
@@ -1561,6 +1563,7 @@ jsonResponse = Proxy
 -- | Make a request and interpret the body of the response as a strict
 -- 'ByteString'.
 newtype BsResponse = BsResponse (L.Response ByteString)
+  deriving (Show)
 
 instance HttpResponse BsResponse where
   type HttpResponseBody BsResponse = ByteString
@@ -1577,6 +1580,7 @@ bsResponse = Proxy
 -- | Make a request and interpret the body of the response as a lazy
 -- 'BL.ByteString'.
 newtype LbsResponse = LbsResponse (L.Response BL.ByteString)
+  deriving (Show)
 
 instance HttpResponse LbsResponse where
   type HttpResponseBody LbsResponse = BL.ByteString
