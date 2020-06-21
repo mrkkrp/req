@@ -3,6 +3,9 @@
 * Requests using `DELETE` method can now have a body. [Issue
   89](https://github.com/mrkkrp/req/issues/89).
 
+* Added the `httpConfigRetryJudgeException` field to `HttpConfig` so that
+  requests that result in exceptions can be retried.
+
 ## Req 3.3.0
 
 * Derived `Show` instances for response types `IgnoreResponse`,
