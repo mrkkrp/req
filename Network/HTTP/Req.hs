@@ -149,6 +149,7 @@ module Network.HTTP.Req
     useHttpsURI,
     useURI,
     urlQ,
+    renderUrl,
 
     -- ** Body
     -- $body
@@ -928,6 +929,19 @@ infixl 5 /:
 
 (/:) :: Url scheme -> Text -> Url scheme
 (/:) = (/~)
+
+-- | Render a 'Url' as 'Text'.
+--
+-- @since 3.4.0
+renderUrl :: Url scheme -> Text
+renderUrl = \case
+  Url Https parts ->
+    "https://" <> renderParts parts
+  Url Http parts ->
+    "http://" <> renderParts parts
+  where
+    renderParts parts =
+      T.intercalate "/" (reverse $ NE.toList parts)
 
 -- | The 'useHttpURI' function provides an alternative method to get 'Url'
 -- (possibly with some 'Option's) from a 'URI'. This is useful when you are
