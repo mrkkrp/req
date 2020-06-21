@@ -770,14 +770,15 @@ instance HttpMethod PUT where
   type AllowsBody PUT = 'CanHaveBody
   httpMethodName Proxy = Y.methodPut
 
--- | 'DELETE' method. This data type does not allow having request body with
--- 'DELETE' requests, as it should be. However some APIs may expect 'DELETE'
--- requests to have bodies, in that case define your own variation of
--- 'DELETE' method and allow it to have a body.
+-- | 'DELETE' method. RFC 7231 allows a payload in DELETE but without
+-- semantics.
+--
+-- __Note__: before version /3.4.0/ this method did not allow request
+-- bodies.
 data DELETE = DELETE
 
 instance HttpMethod DELETE where
-  type AllowsBody DELETE = 'NoBody
+  type AllowsBody DELETE = 'CanHaveBody
   httpMethodName Proxy = Y.methodDelete
 
 -- | 'TRACE' method.

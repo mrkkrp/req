@@ -1,3 +1,8 @@
+## Req 3.4.0
+
+* Requests using `DELETE` method can now have a body. [Issue
+  89](https://github.com/mrkkrp/req/issues/89).
+
 ## Req 3.3.0
 
 * Derived `Show` instances for response types `IgnoreResponse`,
