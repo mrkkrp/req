@@ -232,8 +232,9 @@ where
 import qualified Blaze.ByteString.Builder as BB
 import Control.Applicative
 import Control.Arrow (first, second)
-import Control.Exception hiding (TypeError)
+import Control.Exception hiding (Handler (..), TypeError)
 import Control.Monad.Base
+import Control.Monad.Catch (Handler (..))
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
@@ -472,11 +473,22 @@ reqBr method url body options consume = req' method url body options $ \request 
               r' <- L.responseOpen request manager
               writeIORef rref (Just r')
               return r'
+            exceptionRetryPolicies =
+              skipAsyncExceptions
+                ++ [ \retryStatus -> Handler $ \e ->
+                       return $ httpConfigRetryJudgeException retryStatus e
+                   ]
         r <-
           retrying
             httpConfigRetryPolicy
-            (\st r -> return $ httpConfigRetryJudge st r)
-            (const openResponse)
+            (\retryStatus r -> return $ httpConfigRetryJudge retryStatus r)
+            ( const
+                ( recovering
+                    httpConfigRetryPolicy
+                    exceptionRetryPolicies
+                    (const openResponse)
+                )
+            )
         (preview, r') <- grabPreview bodyPreviewLength r
         mapM_ LI.throwHttp (httpConfigCheckResponse request r' preview)
         consume r'
@@ -652,7 +664,12 @@ data HttpConfig = HttpConfig
     -- /1.0.0/.
     --
     -- @since 0.3.0
-    httpConfigRetryJudge :: forall b. RetryStatus -> L.Response b -> Bool
+    httpConfigRetryJudge :: forall b. RetryStatus -> L.Response b -> Bool,
+    -- | Similar to 'httpConfigRetryJudge', but is used to decide when to
+    -- retry requests that resulted in an exception.
+    --
+    -- @since 3.4.0
+    httpConfigRetryJudgeException :: RetryStatus -> SomeException -> Bool
   }
   deriving (Typeable)
 
@@ -678,7 +695,8 @@ defaultHttpConfig =
                    524, -- A timeout occurred
                    598, -- (Informal convention) Network read timeout error
                    599 -- (Informal convention) Network connect timeout error
-                 ]
+                 ],
+      httpConfigRetryJudgeException = \_ _ -> False
     }
   where
     statusCode = Y.statusCode . L.responseStatus

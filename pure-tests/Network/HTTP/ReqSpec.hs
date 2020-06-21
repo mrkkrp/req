@@ -440,6 +440,7 @@ instance Arbitrary HttpConfig where
         httpConfigCheckResponse _ _ _ = Nothing
         httpConfigRetryPolicy = retryPolicyDefault
         httpConfigRetryJudge _ _ = False
+        httpConfigRetryJudgeException _ _ = False
     return HttpConfig {..}
 
 instance Show HttpConfig where
