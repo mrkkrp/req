@@ -182,6 +182,26 @@ spec = do
           lookup "Authorization" (L.requestHeaders requestHttps)
             `shouldBe` uriBasicAuth uriHttps
 
+    describe "renderUrl" $ do
+      context "http" $ do
+        context "empty path" $
+          it "renders correctly" $ do
+            let (uriHttp, _) = [urlQ|http://httpbin.org|]
+            renderUrl uriHttp `shouldBe` "http://httpbin.org"
+        context "non-empty path" $
+          it "renders correctly" $ do
+            let (uriHttp, _) = [urlQ|http://httpbin.org/here/we/go|]
+            renderUrl uriHttp `shouldBe` "http://httpbin.org/here/we/go"
+      context "http" $ do
+        context "empty path" $
+          it "renders correctly" $ do
+            let (uriHttp, _) = [urlQ|https://httpbin.org|]
+            renderUrl uriHttp `shouldBe` "https://httpbin.org"
+        context "non-empty path" $
+          it "renders correctly" $ do
+            let (uriHttp, _) = [urlQ|https://httpbin.org/here/we/go|]
+            renderUrl uriHttp `shouldBe` "https://httpbin.org/here/we/go"
+
   describe "bodies" $ do
     describe "NoReqBody" $
       it "sets body to empty byte string" $ do

@@ -6,6 +6,8 @@
 * Added the `httpConfigRetryJudgeException` field to `HttpConfig` so that
   requests that result in exceptions can be retried.
 
+* Added the function `renderUrl`.
+
 ## Req 3.3.0
 
 * Derived `Show` instances for response types `IgnoreResponse`,
