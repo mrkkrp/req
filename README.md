@@ -4,7 +4,7 @@
 [![Hackage](https://img.shields.io/hackage/v/req.svg?style=flat)](https://hackage.haskell.org/package/req)
 [![Stackage Nightly](http://stackage.org/package/req/badge/nightly)](http://stackage.org/nightly/package/req)
 [![Stackage LTS](http://stackage.org/package/req/badge/lts)](http://stackage.org/lts/package/req)
-[![Build Status](https://travis-ci.org/mrkkrp/req.svg?branch=master)](https://travis-ci.org/mrkkrp/req)
+![CI](https://github.com/mrkkrp/req/workflows/CI/badge.svg?branch=master)
 
 * [Motivation and Req vs other libraries](#motivation-and-req-vs-other-libraries)
 * [Unsolved problems](#unsolved-problems)
