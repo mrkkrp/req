@@ -10,7 +10,7 @@ module Network.HTTP.ReqSpec (spec) where
 import Control.Exception
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
-import Data.Aeson ((.=), ToJSON (..), Value (..), object)
+import Data.Aeson (ToJSON (..), Value (..), object, (.=))
 import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -33,28 +33,26 @@ import Data.Semigroup ((<>))
 
 spec :: Spec
 spec = do
-  describe "exception throwing on non-2xx status codes"
-    $ it "throws indeed for non-2xx"
-    $ req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
-      `shouldThrow` selector404
-
-  describe "exception throwing on non-2xx status codes (Req monad)"
-    $ it "throws indeed for non-2xx"
-    $ asIO . runReq defaultHttpConfig
-    $ liftBaseWith
-    $ \run ->
-      run (req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty)
+  describe "exception throwing on non-2xx status codes" $
+    it "throws indeed for non-2xx" $
+      req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
         `shouldThrow` selector404
 
-  describe "response check via httpConfigCheckResponse"
-    $ context "if it's set to always throw"
-    $ it "throws indeed"
-    $ blindlyThrowing (req GET httpbin NoReqBody ignoreResponse mempty)
-      `shouldThrow` anyException
+  describe "exception throwing on non-2xx status codes (Req monad)" $
+    it "throws indeed for non-2xx" $
+      asIO . runReq defaultHttpConfig $
+        liftBaseWith $ \run ->
+          run (req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty)
+            `shouldThrow` selector404
 
-  describe "receiving user-agent header back"
-    $ it "works"
-    $ do
+  describe "response check via httpConfigCheckResponse" $
+    context "if it's set to always throw" $
+      it "throws indeed" $
+        blindlyThrowing (req GET httpbin NoReqBody ignoreResponse mempty)
+          `shouldThrow` anyException
+
+  describe "receiving user-agent header back" $
+    it "works" $ do
       r <-
         req
           GET
@@ -68,9 +66,8 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  describe "receiving request headers back"
-    $ it "works"
-    $ do
+  describe "receiving request headers back" $
+    it "works" $ do
       r <-
         req
           GET
@@ -91,9 +88,8 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  describe "receiving GET data back"
-    $ it "works"
-    $ do
+  describe "receiving GET data back" $
+    it "works" $ do
       r <- req GET (httpbin /: "get") NoReqBody jsonResponse mempty
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
@@ -109,9 +105,8 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  describe "receiving POST JSON data back"
-    $ it "works"
-    $ do
+  describe "receiving POST JSON data back" $
+    it "works" $ do
       let text = "foo" :: Text
           reflected = reflectJSON text
       r <- req POST (httpbin /: "post") (ReqBodyJson text) jsonResponse mempty
@@ -135,9 +130,8 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  describe "receiving POST data back (multipart form data)"
-    $ it "works"
-    $ do
+  describe "receiving POST data back (multipart form data)" $
+    it "works" $ do
       body <-
         reqBodyMultipart
           [ LM.partBS "foo" "foo data!",
@@ -169,9 +163,8 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  describe "receiving PATCHed file back"
-    $ it "works"
-    $ do
+  describe "receiving PATCHed file back" $
+    it "works" $ do
       let file :: FilePath
           file = "httpbin-data/robots.txt"
       contents <- TIO.readFile file
@@ -195,9 +188,8 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  describe "receiving PUT form URL-encoded data back"
-    $ it "works"
-    $ do
+  describe "receiving PUT form URL-encoded data back" $
+    it "works" $ do
       let params =
             "foo" =: ("bar" :: Text)
               <> "baz" =: (5 :: Int)
@@ -230,9 +222,8 @@ spec = do
 
   -- TODO /delete
 
-  describe "receiving UTF-8 encoded Unicode data"
-    $ it "works"
-    $ do
+  describe "receiving UTF-8 encoded Unicode data" $
+    it "works" $ do
       r <-
         req
           GET
@@ -248,9 +239,8 @@ spec = do
   -- TODO /gzip
   -- TODO /deflate
 
-  describe "retrying"
-    $ it "retries as many times as specified"
-    $ do
+  describe "retrying" $
+    it "retries as many times as specified" $ do
       -- FIXME We no longer can count retries because all the functions
       -- responsible for controlling retrying are pure now.
       let status = 408 :: Int
@@ -277,9 +267,8 @@ spec = do
   --
   -- https://github.com/postmanlabs/httpbin/issues/617
 
-  -- describe "redirects"
-  --   $ it "follows redirects"
-  --   $ do
+  -- describe "redirects" $
+  --   it "follows redirects" $ do
   --     r <-
   --       req
   --         GET
@@ -298,9 +287,8 @@ spec = do
     let user, password :: Text
         user = "Scooby"
         password = "Doo"
-    context "when we do not send appropriate basic auth data"
-      $ it "fails with 401"
-      $ do
+    context "when we do not send appropriate basic auth data" $
+      it "fails with 401" $ do
         r <-
           prepareForShit $
             req
@@ -311,9 +299,8 @@ spec = do
               mempty
         responseStatusCode r `shouldBe` 401
         responseStatusMessage r `shouldBe` "UNAUTHORIZED"
-    context "when we provide appropriate basic auth data"
-      $ it "succeeds"
-      $ do
+    context "when we provide appropriate basic auth data" $
+      it "succeeds" $ do
         r <-
           req
             GET
@@ -332,9 +319,8 @@ spec = do
   -- TODO /range
   -- TODO /html
 
-  describe "robots.txt"
-    $ it "works"
-    $ do
+  describe "robots.txt" $
+    it "works" $ do
       r <- req GET (httpbin /: "robots.txt") NoReqBody bsResponse mempty
       robots <- B.readFile "httpbin-data/robots.txt"
       responseBody r `shouldBe` robots
@@ -345,9 +331,8 @@ spec = do
   -- TODO /cache
 
   describe "getting random bytes" $ do
-    it "works"
-      $ property
-      $ \n' -> do
+    it "works" $
+      property $ \n' -> do
         let n :: Word
             n = getSmall n'
         r <-
@@ -360,9 +345,8 @@ spec = do
         responseBody r `shouldSatisfy` ((== n) . fromIntegral . BL.length)
         responseStatusCode r `shouldBe` 200
         responseStatusMessage r `shouldBe` "OK"
-    context "when we try to interpret 1000 random bytes as JSON"
-      $ it "throws correct exception"
-      $ do
+    context "when we try to interpret 1000 random bytes as JSON" $
+      it "throws correct exception" $ do
         let selector :: HttpException -> Bool
             selector (JsonHttpException _) = True
             selector _ = False
@@ -376,22 +360,21 @@ spec = do
           mempty
           `shouldThrow` selector
 
-  describe "streaming random bytes"
-    $ it "works"
-    $ property
-    $ \n' -> do
-      let n :: Word
-          n = getSmall n'
-      r <-
-        req
-          GET
-          (httpbin /: "stream-bytes" /~ n)
-          NoReqBody
-          bsResponse
-          mempty
-      responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
-      responseStatusCode r `shouldBe` 200
-      responseStatusMessage r `shouldBe` "OK"
+  describe "streaming random bytes" $
+    it "works" $
+      property $ \n' -> do
+        let n :: Word
+            n = getSmall n'
+        r <-
+          req
+            GET
+            (httpbin /: "stream-bytes" /~ n)
+            NoReqBody
+            bsResponse
+            mempty
+        responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
+        responseStatusCode r `shouldBe` 200
+        responseStatusMessage r `shouldBe` "OK"
 
 -- TODO /links
 -- TODO /image
@@ -454,9 +437,8 @@ stripFunnyHeaders value = value
 -- get various response status codes.
 checkStatusCode :: Int -> SpecWith ()
 checkStatusCode code =
-  describe ("receiving status code " ++ show code)
-    $ it "works"
-    $ do
+  describe ("receiving status code " ++ show code) $
+    it "works" $ do
       r <-
         prepareForShit $
           req
