@@ -4,9 +4,11 @@
   89](https://github.com/mrkkrp/req/issues/89).
 
 * Added the `httpConfigRetryJudgeException` field to `HttpConfig` so that
-  requests that result in exceptions can be retried.
+  requests that result in exceptions can be retried. [Issue
+  93](https://github.com/mrkkrp/req/issues/93).
 
-* Added the function `renderUrl`.
+* Added the function `renderUrl`. [Issue
+  83](https://github.com/mrkkrp/req/issues/83).
 
 ## Req 3.3.0
 
