@@ -237,6 +237,7 @@ import Control.Exception hiding (Handler (..), TypeError)
 import Control.Monad.Base
 import Control.Monad.Catch (Handler (..))
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Retry
@@ -719,7 +720,8 @@ newtype Req a = Req (ReaderT HttpConfig IO a)
     ( Functor,
       Applicative,
       Monad,
-      MonadIO
+      MonadIO,
+      MonadUnliftIO
     )
 
 instance MonadBase IO Req where
