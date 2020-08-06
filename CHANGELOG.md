@@ -1,3 +1,8 @@
+## Req 3.5.0
+
+* Made `Req` an instance of `MonadUnliftIO`. [Issue
+  100](https://github.com/mrkkrp/req/issues/100).
+
 ## Req 3.4.0
 
 * Requests using `DELETE` method can now have a body. [Issue
