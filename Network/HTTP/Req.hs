@@ -491,7 +491,7 @@ reqBr method url body options consume = req' method url body options $ \request 
                     (const openResponse)
                 )
             )
-        (preview, r') <- grabPreview bodyPreviewLength r
+        (preview, r') <- grabPreview httpConfigBodyPreviewLength r
         mapM_ LI.throwHttp (httpConfigCheckResponse request r' preview)
         consume r'
     )
@@ -671,7 +671,11 @@ data HttpConfig = HttpConfig
     -- retry requests that resulted in an exception.
     --
     -- @since 3.4.0
-    httpConfigRetryJudgeException :: RetryStatus -> SomeException -> Bool
+    httpConfigRetryJudgeException :: RetryStatus -> SomeException -> Bool,
+    -- | Max length of preview fragment of response body.
+    --
+    -- @since 3.6.0
+    httpConfigBodyPreviewLength :: forall a. Num a => a
   }
   deriving (Typeable)
 
@@ -698,7 +702,8 @@ defaultHttpConfig =
                    598, -- (Informal convention) Network read timeout error
                    599 -- (Informal convention) Network connect timeout error
                  ],
-      httpConfigRetryJudgeException = \_ _ -> False
+      httpConfigRetryJudgeException = \_ _ -> False,
+      httpConfigBodyPreviewLength = 1024
     }
   where
     statusCode = Y.statusCode . L.responseStatus
@@ -1843,10 +1848,3 @@ data Scheme
   | -- | HTTPS
     Https
   deriving (Eq, Ord, Show, Data, Typeable, Generic, TH.Lift)
-
-----------------------------------------------------------------------------
--- Constants
-
--- | Max length of preview fragment of response body.
-bodyPreviewLength :: Num a => a
-bodyPreviewLength = 1024

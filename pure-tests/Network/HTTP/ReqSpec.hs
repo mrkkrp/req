@@ -427,6 +427,7 @@ instance Arbitrary HttpConfig where
         httpConfigRetryPolicy = retryPolicyDefault
         httpConfigRetryJudge _ _ = False
         httpConfigRetryJudgeException _ _ = False
+        httpConfigBodyPreviewLength = 1024
     return HttpConfig {..}
 
 instance Show HttpConfig where
