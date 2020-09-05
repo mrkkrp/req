@@ -1,3 +1,8 @@
+## Req 3.6.0
+
+* Added the `httpConfigBodyPreviewLength` configuration parameter to
+  `HttpConfig`.
+
 ## Req 3.5.0
 
 * Made `Req` an instance of `MonadUnliftIO`. [Issue
