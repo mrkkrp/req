@@ -1,3 +1,8 @@
+## Req 3.7.0
+
+* Added `reqCb`, a function that allows you to modify the `Request` object
+  but otherwise performs the requst for you.
+
 ## Req 3.6.0
 
 * Added the `httpConfigBodyPreviewLength` configuration parameter to

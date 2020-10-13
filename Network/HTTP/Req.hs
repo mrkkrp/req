@@ -112,6 +112,7 @@ module Network.HTTP.Req
     -- $making-a-request
     req,
     reqBr,
+    reqCb,
     req',
     withReqManager,
 
@@ -429,12 +430,7 @@ req ::
   -- | Response
   m response
 req method url body responseProxy options =
-  reqBr method url body (options <> extraOptions) getHttpResponse
-  where
-    extraOptions =
-      case acceptHeader responseProxy of
-        Nothing -> mempty
-        Just accept -> header "Accept" accept
+  reqCb method url body responseProxy options pure
 
 -- | A version of 'req' that does not use one of the predefined instances of
 -- 'HttpResponse' but instead allows the user to consume @'L.Response'
@@ -459,7 +455,58 @@ reqBr ::
   (L.Response L.BodyReader -> IO a) ->
   -- | Result
   m a
-reqBr method url body options consume = req' method url body options $ \request manager -> do
+reqBr method url body options consume =
+  req' method url body options (reqHandler consume)
+
+-- | A version of 'req' that takes a callback to modify the @'L.Request',
+-- but otherwise performs the request identically.
+--
+-- @since 3.7.0
+reqCb ::
+  ( MonadHttp m,
+    HttpMethod method,
+    HttpBody body,
+    HttpResponse response,
+    HttpBodyAllowed (AllowsBody method) (ProvidesBody body)
+  ) =>
+  -- | HTTP method
+  method ->
+  -- | 'Url'—location of resource
+  Url scheme ->
+  -- | Body of the request
+  body ->
+  -- | A hint how to interpret response
+  Proxy response ->
+  -- | Collection of optional parameters
+  Option scheme ->
+  -- | Callback to modify the request
+  (L.Request -> m L.Request) ->
+  -- | Response
+  m response
+reqCb method url body responseProxy options adjustRequest =
+  req' method url body (options <> extraOptions) $ \request manager -> do
+    request' <- adjustRequest request
+    reqHandler getHttpResponse request' manager
+  where
+    extraOptions =
+      case acceptHeader responseProxy of
+        Nothing -> mempty
+        Just accept -> header "Accept" accept
+
+-- | The default handler function that the higher-level request functions
+-- pass to 'req''. Internal function.
+--
+-- @since 3.7.0
+reqHandler ::
+  MonadHttp m =>
+  -- | How to get final result from a 'L.Response'
+  (L.Response L.BodyReader -> IO b) ->
+  -- | 'L.Request' to perform
+  L.Request ->
+  -- | 'L.Manager' to use
+  L.Manager ->
+  m b
+reqHandler consume request manager = do
   HttpConfig {..} <- getHttpConfig
   let wrapVanilla = handle (throwIO . VanillaHttpException)
       wrapExc = handle (throwIO . LI.toHttpException request)
