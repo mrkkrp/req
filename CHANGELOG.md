@@ -3,6 +3,8 @@
 * Added `reqCb`, a function that allows you to modify the `Request` object
   but otherwise performs the requst for you.
 
+* Derived `MonadThrow`, `MonadCatch`, and `MonadMask` for the `Req` monad.
+
 ## Req 3.6.0
 
 * Added the `httpConfigBodyPreviewLength` configuration parameter to
