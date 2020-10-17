@@ -458,8 +458,8 @@ reqBr ::
 reqBr method url body options consume =
   req' method url body options (reqHandler consume)
 
--- | A version of 'req' that takes a callback to modify the @'L.Request',
--- but otherwise performs the request identically.
+-- | A version of 'req' that takes a callback to modify the 'L.Request', but
+-- otherwise performs the request identically.
 --
 -- @since 3.7.0
 reqCb ::
