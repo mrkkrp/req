@@ -14,6 +14,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -236,7 +237,7 @@ import Control.Applicative
 import Control.Arrow (first, second)
 import Control.Exception hiding (Handler (..), TypeError)
 import Control.Monad.Base
-import Control.Monad.Catch (Handler (..))
+import Control.Monad.Catch (Handler (..), MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift
 import Control.Monad.Reader
@@ -775,6 +776,15 @@ newtype Req a = Req (ReaderT HttpConfig IO a)
       MonadIO,
       MonadUnliftIO
     )
+
+-- | @since 3.7.0
+deriving instance MonadThrow Req
+
+-- | @since 3.7.0
+deriving instance MonadCatch Req
+
+-- | @since 3.7.0
+deriving instance MonadMask Req
 
 instance MonadBase IO Req where
   liftBase = liftIO
