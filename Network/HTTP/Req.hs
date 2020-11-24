@@ -716,7 +716,9 @@ data HttpConfig = HttpConfig
     -- @since 0.3.0
     httpConfigRetryJudge :: forall b. RetryStatus -> L.Response b -> Bool,
     -- | Similar to 'httpConfigRetryJudge', but is used to decide when to
-    -- retry requests that resulted in an exception.
+    -- retry requests that resulted in an exception. By default it retries
+    -- on response timeout and connection timeout (changed in version
+    -- /3.8.0/).
     --
     -- @since 3.4.0
     httpConfigRetryJudgeException :: RetryStatus -> SomeException -> Bool,
@@ -750,7 +752,14 @@ defaultHttpConfig =
                    598, -- (Informal convention) Network read timeout error
                    599 -- (Informal convention) Network connect timeout error
                  ],
-      httpConfigRetryJudgeException = \_ _ -> False,
+      httpConfigRetryJudgeException = \_ e ->
+        case fromException e of
+          Just (L.HttpExceptionRequest _ c) ->
+            case c of
+              L.ResponseTimeout -> True
+              L.ConnectionTimeout -> True
+              _ -> False
+          _ -> False,
       httpConfigBodyPreviewLength = 1024
     }
   where
