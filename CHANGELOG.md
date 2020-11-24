@@ -1,3 +1,8 @@
+## Req 3.8.0
+
+* Adjusted the value of the `httpConfigRetryJudgeException` field of
+  `defaultHttpConfig` to retry on response timeouts and connection timeouts.
+
 ## Req 3.7.0
 
 * Added `reqCb`, a function that allows you to modify the `Request` object
