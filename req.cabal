@@ -5,7 +5,7 @@ license:         BSD3
 license-file:    LICENSE.md
 maintainer:      Mark Karpov <markkarpov92@gmail.com>
 author:          Mark Karpov <markkarpov92@gmail.com>
-tested-with:     ghc ==8.6.5 ghc ==8.8.4 ghc ==8.10.2
+tested-with:     ghc ==8.6.5 ghc ==8.8.4 ghc ==8.10.3
 homepage:        https://github.com/mrkkrp/req
 bug-reports:     https://github.com/mrkkrp/req/issues
 synopsis:
