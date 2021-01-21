@@ -565,8 +565,9 @@ uriPort def uri =
 -- | Get path from 'URI'.
 uriPath :: URI -> ByteString
 uriPath uri = fromMaybe "" $ do
-  (_, xs) <- URI.uriPath uri
-  (return . encodePathPieces . fmap URI.unRText . NE.toList) xs
+  (trailingSlash, xs) <- URI.uriPath uri
+  let pref = (encodePathPieces . fmap URI.unRText . NE.toList) xs
+  return $ if trailingSlash then pref <> "/" else pref
 
 -- | Get query string from 'URI'.
 uriQuery :: URI -> ByteString

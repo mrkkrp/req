@@ -1029,8 +1029,7 @@ useHttpURI uri = do
   urlHead <- http <$> uriHost uri
   let url = case URI.uriPath uri of
         Nothing -> urlHead
-        Just (_, xs) ->
-          foldl' (/:) urlHead (URI.unRText <$> NE.toList xs)
+        Just uriPath -> uriPathToUrl uriPath urlHead
   return (url, uriOptions uri)
 
 -- | Just like 'useHttpURI', but expects the “https” scheme.
@@ -1042,9 +1041,20 @@ useHttpsURI uri = do
   urlHead <- https <$> uriHost uri
   let url = case URI.uriPath uri of
         Nothing -> urlHead
-        Just (_, xs) ->
-          foldl' (/:) urlHead (URI.unRText <$> NE.toList xs)
+        Just uriPath -> uriPathToUrl uriPath urlHead
   return (url, uriOptions uri)
+
+-- | Convert URI path to a 'Url'. Internal.
+--
+-- @since 3.9.0
+uriPathToUrl ::
+  (Bool, NonEmpty (URI.RText 'URI.PathPiece)) ->
+  Url scheme ->
+  Url scheme
+uriPathToUrl (trailingSlash, xs) urlHead =
+  if trailingSlash then path /: T.empty else path
+  where
+    path = foldl' (/:) urlHead (URI.unRText <$> NE.toList xs)
 
 -- | A combination of 'useHttpURI' and 'useHttpsURI' for cases when scheme
 -- is not known in advance.
