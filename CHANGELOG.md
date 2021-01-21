@@ -1,3 +1,8 @@
+## Req 3.9.0
+
+* The `useHttpURI` and `useHttpsURI` functions now preserve trailing
+  slashes.
+
 ## Req 3.8.0
 
 * Adjusted the value of the `httpConfigRetryJudgeException` field of
