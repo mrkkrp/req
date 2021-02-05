@@ -975,7 +975,9 @@ instance Typeable scheme => TH.Lift (Url scheme) where
     where
       liftText t = TH.AppE (TH.VarE 'T.pack) <$> TH.lift (T.unpack t)
 
-#if MIN_VERSION_template_haskell(2,16,0)
+#if MIN_VERSION_template_haskell(2,17,0)
+  liftTyped url = TH.unsafeCodeCoerce $ TH.lift url
+#elif MIN_VERSION_template_haskell(2,16,0)
   liftTyped url = TH.TExp <$> TH.lift url
 #endif
 
