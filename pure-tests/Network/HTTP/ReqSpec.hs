@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -47,10 +46,6 @@ import Test.QuickCheck
 import Text.URI (URI)
 import qualified Text.URI as URI
 import qualified Text.URI.QQ as QQ
-
-#if !MIN_VERSION_base(4,13,0)
-import Data.Semigroup ((<>))
-#endif
 
 spec :: Spec
 spec = do
@@ -266,11 +261,7 @@ spec = do
       it "cookie jar is set without modifications" $
         property $ \cjar -> do
           request <- req_ GET url NoReqBody (cookieJar cjar)
-#if MIN_VERSION_http_client(0,7,0)
           L.cookieJar request `shouldSatisfy` (maybe False (L.equalCookieJar cjar))
-#else
-          L.cookieJar request `shouldBe` Just cjar
-#endif
     describe "basicAuth" $ do
       it "sets Authorization header to correct value" $
         property $ \username password -> do
