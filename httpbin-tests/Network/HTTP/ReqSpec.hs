@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -26,10 +25,6 @@ import Network.HTTP.Req
 import qualified Network.HTTP.Types as Y
 import Test.Hspec
 import Test.QuickCheck
-
-#if !MIN_VERSION_base(4,13,0)
-import Data.Semigroup ((<>))
-#endif
 
 spec :: Spec
 spec = do
