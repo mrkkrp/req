@@ -562,14 +562,14 @@ uriPort def uri =
   maybe def (fromIntegral) $
     either (const Nothing) Just (URI.uriAuthority uri) >>= URI.authPort
 
--- | Get path from 'URI'.
+-- | Get the path from a 'URI'.
 uriPath :: URI -> ByteString
 uriPath uri = fromMaybe "" $ do
   (trailingSlash, xs) <- URI.uriPath uri
   let pref = (encodePathPieces . fmap URI.unRText . NE.toList) xs
   return $ if trailingSlash then pref <> "/" else pref
 
--- | Get query string from 'URI'.
+-- | Get the query string from a 'URI'.
 uriQuery :: URI -> ByteString
 uriQuery uri = do
   let liftQueryParam = \case

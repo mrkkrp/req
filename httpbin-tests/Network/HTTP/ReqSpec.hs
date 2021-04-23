@@ -394,14 +394,13 @@ instance MonadHttp IO where
 ----------------------------------------------------------------------------
 -- Helpers
 
--- | Run request with such settings that it does not signal error on adverse
--- response status codes.
+-- | Run a request with such settings that it does not signal errors.
 prepareForShit :: Req a -> IO a
 prepareForShit = runReq defaultHttpConfig {httpConfigCheckResponse = noNoise}
   where
     noNoise _ _ _ = Nothing
 
--- | Run request with such settings that it throws on any response.
+-- | Run a request with such settings that it throws on any response.
 blindlyThrowing :: Req a -> IO a
 blindlyThrowing = runReq defaultHttpConfig {httpConfigCheckResponse = doit}
   where
@@ -461,11 +460,11 @@ selector404
     L.responseStatus response == Y.status404 && not (B.null chunk)
 selector404 _ = False
 
--- | Empty JSON 'Object'.
+-- | The empty JSON 'Object'.
 emptyObject :: Value
 emptyObject = Object HM.empty
 
--- | Get rendered JSON value as 'Text'.
+-- | Get a rendered JSON value as 'Text'.
 reflectJSON :: ToJSON a => a -> Text
 reflectJSON = T.decodeUtf8 . BL.toStrict . A.encode
 

@@ -30,61 +30,40 @@
 --
 -- The documentation below is structured in such a way that the most
 -- important information is presented first: you learn how to do HTTP
--- requests, how to embed them in any monad you have, and then it gives you
+-- requests, how to embed them in the monad you have, and then it gives you
 -- details about less-common things you may want to know about. The
 -- documentation is written with sufficient coverage of details and
 -- examples, and it's designed to be a complete tutorial on its own.
 --
--- /(A modest intro goes here, click on 'req' to start making requests.)/
---
 -- === About the library
 --
--- Req is an easy-to-use, type-safe, expandable, high-level HTTP client
--- library that just works without any fooling around.
+-- Req is an HTTP client library that attempts to be easy-to-use, type-safe,
+-- and expandable.
 --
--- What does the phrase “easy-to-use” mean? It means that the library is
--- designed to be beginner-friendly so it's simple to add to your monad
--- stack, intuitive to work with, well-documented, and does not get in your
--- way. Doing HTTP requests is a common task and Haskell library for this
--- should be very approachable and clear to beginners, thus certain
--- compromises were made. For example, one cannot currently modify
--- 'L.ManagerSettings' of the default manager because the library always
--- uses the same implicit global manager for simplicity and maximal
--- connection sharing. There is a way to use your own manager with different
--- settings, but it requires a bit more typing.
+-- “Easy-to-use” means that the library is designed to be beginner-friendly
+-- so it's simple to add to your monad stack, intuitive to work with,
+-- well-documented, and does not get in your way. Doing HTTP requests is a
+-- common task and a Haskell library for this should be approachable and
+-- clear to beginners, thus certain compromises were made. For example, one
+-- cannot currently modify 'L.ManagerSettings' of the default manager
+-- because the library always uses the same implicit global manager for
+-- simplicity and maximal connection sharing. There is a way to use your own
+-- manager with different settings, but it requires more typing.
 --
--- “Type-safe” means that the library is protective and eliminates certain
--- classes of errors. For example, we have correct-by-construction 'Url's,
--- it's guaranteed that the user does not send the request body when using
--- methods like 'GET' or 'OPTIONS', and the amount of implicit assumptions
--- is minimized by making the user specify his\/her intentions in an
--- explicit form (for example, it's not possible to avoid specifying the
--- body or method of request). Authentication methods that assume HTTPS
--- force the user to use HTTPS at the type level. The library also carefully
--- hides underlying types from the lower-level @http-client@ package because
--- those types are not safe enough (for example 'L.Request' is an instance
--- of 'Data.String.IsString' and, if it's malformed, it will blow up at
--- run-time).
+-- “Type-safe” means that the library tries to eliminate certain classes of
+-- errors. For example, we have correct-by-construction URLs; it is
+-- guaranteed that the user does not send the request body when using
+-- methods like GET or OPTIONS, and the amount of implicit assumptions is
+-- minimized by making the user specify their intentions in an explicit
+-- form. For example, it's not possible to avoid specifying the body or the
+-- method of a request. Authentication methods that assume HTTPS force the
+-- user to use HTTPS at the type level.
 --
--- “Expandable” refers to the ability of the library to be expanded without
--- having to resort to ugly hacking. For example, it's possible to define
--- your own HTTP methods, create new ways to construct the body of a
--- request, create new authorization options, perform a request in a
--- different way, and create your own methods to parse and represent a
--- response. As the user extends the library to satisfy his\/her special
--- needs, the new solutions will work just like the built-ins. However, all
--- of the common cases are also covered by the library out-of-the-box.
---
--- “High-level” means that there are less details to worry about. The
--- library is a result of my experiences as a Haskell consultant. Working
--- for several clients, who had very different projects, showed me that the
--- library should adapt easily to any particular style of writing Haskell
--- applications. For example, some people prefer throwing exceptions, while
--- others are concerned with purity. Just define 'handleHttpException'
--- accordingly when making your monad instance of 'MonadHttp' and it will
--- play together seamlessly. Finally, the library cuts down boilerplate
--- considerably, and helps you write concise, easy to read, and maintainable
--- code.
+-- “Expandable” refers to the ability to create new components without
+-- having to resort to hacking. For example, it's possible to define your
+-- own HTTP methods, create new ways to construct the body of a request,
+-- create new authorization options, perform a request in a different way,
+-- and create your own methods to parse a response.
 --
 -- === Using with other libraries
 --
@@ -303,7 +282,7 @@ import Web.HttpApiData (ToHttpApiData (..))
 --
 -- @body@ is a body option such as 'NoReqBody' or 'ReqBodyJson'. The
 -- tutorial has a section about HTTP bodies, but usage is very
--- straightforward and should be clear from the examples below.
+-- straightforward and should be clear from the examples.
 --
 -- @response@ is a type hint how to make and interpret response of an HTTP
 -- request. Out-of-the-box it can be the following:
@@ -588,9 +567,9 @@ req' method url body options m = do
           nubHeaders
             <> getRequestMod options
             <> getRequestMod config
-            <> getRequestMod (Womb body :: Womb "body" body)
+            <> getRequestMod (Tagged body :: Tagged "body" body)
             <> getRequestMod url
-            <> getRequestMod (Womb method :: Womb "method" method)
+            <> getRequestMod (Tagged method :: Tagged "method" method)
   request <- finalizeRequest options request'
   withReqManager (m request)
 
@@ -600,10 +579,10 @@ req' method url body options m = do
 withReqManager :: MonadIO m => (L.Manager -> m a) -> m a
 withReqManager m = liftIO (readIORef globalManager) >>= m
 
--- | Global 'L.Manager' that 'req' uses. Here we just go with the default
--- settings, so users don't need to deal with this manager stuff at all, but
--- when we create a request, instance 'HttpConfig' can affect the default
--- settings via 'getHttpConfig'.
+-- | The global 'L.Manager' that 'req' uses. Here we just go with the
+-- default settings, so users don't need to deal with this manager stuff at
+-- all, but when we create a request, instance 'HttpConfig' can affect the
+-- default settings via 'getHttpConfig'.
 --
 -- A note about safety, in case 'unsafePerformIO' looks suspicious to you.
 -- The value of 'globalManager' is named and lives on top level. This means
@@ -634,8 +613,8 @@ globalManager = unsafePerformIO $ do
 -- When writing a library, keep your API polymorphic in terms of
 -- 'MonadHttp', only define instance of 'MonadHttp' in final application.
 -- Another option is to use a @newtype@-wrapped monad stack and define
--- 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad that follows
--- this strategy is provided out-of-the-box (see below).
+-- 'MonadHttp' for it. As of the version /0.4.0/, the 'Req' monad that
+-- follows this strategy is provided out-of-the-box (see below).
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
@@ -648,17 +627,16 @@ class MonadIO m => MonadHttp m where
   -- 'Control.Monad.Except.throwError'.
   handleHttpException :: HttpException -> m a
 
-  -- | Return 'HttpConfig' to be used when performing HTTP requests. Default
-  -- implementation returns its 'def' value, which is described in the
-  -- documentation for the type. Common usage pattern with manually defined
-  -- 'getHttpConfig' is to return some hard-coded value, or a value
+  -- | Return the 'HttpConfig' to be used when performing HTTP requests.
+  -- Default implementation returns its 'def' value, which is described in
+  -- the documentation for the type. Common usage pattern with manually
+  -- defined 'getHttpConfig' is to return some hard-coded value, or a value
   -- extracted from 'Control.Monad.Reader.MonadReader' if a more flexible
   -- approach to configuration is desirable.
   getHttpConfig :: m HttpConfig
   getHttpConfig = return defaultHttpConfig
 
--- | 'HttpConfig' contains general and default settings to be used when
--- making HTTP requests.
+-- | 'HttpConfig' contains settings to be used when making HTTP requests.
 data HttpConfig = HttpConfig
   { -- | Proxy to use. By default values of @HTTP_PROXY@ and @HTTPS_PROXY@
     -- environment variables are respected, this setting overwrites them.
@@ -729,7 +707,7 @@ data HttpConfig = HttpConfig
   }
   deriving (Typeable)
 
--- | Default value of 'HttpConfig'.
+-- | The default value of 'HttpConfig'.
 --
 -- @since 2.0.0
 defaultHttpConfig :: HttpConfig
@@ -773,7 +751,7 @@ instance RequestComponent HttpConfig where
         LI.requestManagerOverride = httpConfigAltManager
       }
 
--- | A monad that allows to run 'req' in any 'IO'-enabled monad without
+-- | A monad that allows us to run 'req' in any 'IO'-enabled monad without
 -- having to define new instances.
 --
 -- @since 0.4.0
@@ -810,7 +788,7 @@ instance MonadHttp Req where
   getHttpConfig = Req ask
 
 -- | Run a computation in the 'Req' monad with the given 'HttpConfig'. In
--- case of exceptional situation an 'HttpException' will be thrown.
+-- the case of an exceptional situation an 'HttpException' will be thrown.
 --
 -- @since 0.4.0
 runReq ::
@@ -919,7 +897,7 @@ class HttpMethod a where
   -- | Return name of the method as a 'ByteString'.
   httpMethodName :: Proxy a -> ByteString
 
-instance HttpMethod method => RequestComponent (Womb "method" method) where
+instance HttpMethod method => RequestComponent (Tagged "method" method) where
   getRequestMod _ = Endo $ \x ->
     x {L.method = httpMethodName (Proxy :: Proxy method)}
 
@@ -966,7 +944,7 @@ data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
 type role Url nominal
 
 -- With template-haskell >=2.15 and text >=1.2.4 Lift can be derived, however
--- the derived lift forgets the type of scheme.
+-- the derived lift forgets the type of the scheme.
 instance Typeable scheme => TH.Lift (Url scheme) where
   lift url =
     TH.dataToExpQ (fmap liftText . cast) url `TH.sigE` case url of
@@ -989,14 +967,14 @@ http = Url Http . pure
 https :: Text -> Url 'Https
 https = Url Https . pure
 
--- | Grow given 'Url' appending a single path segment to it. Note that the
+-- | Grow a given 'Url' appending a single path segment to it. Note that the
 -- path segment can be of any type that is an instance of 'ToHttpApiData'.
 infixl 5 /~
 
 (/~) :: ToHttpApiData a => Url scheme -> a -> Url scheme
 Url secure path /~ segment = Url secure (NE.cons (toUrlPiece segment) path)
 
--- | Type-constrained version of @('/~')@ to remove ambiguity in the cases
+-- | A type-constrained version of @('/~')@ to remove ambiguity in the cases
 -- when next URL piece is a 'Data.Text.Text' literal.
 infixl 5 /:
 
@@ -1172,10 +1150,10 @@ data NoReqBody = NoReqBody
 instance HttpBody NoReqBody where
   getRequestBody NoReqBody = L.RequestBodyBS B.empty
 
--- | This body option allows to use a JSON object as request body—probably
--- the most popular format right now. Just wrap a data type that is an
--- instance of 'ToJSON' type class and you are done: it will be converted to
--- JSON and inserted as request body.
+-- | This body option allows us to use a JSON object as the request
+-- body—probably the most popular format right now. Just wrap a data type
+-- that is an instance of 'ToJSON' type class and you are done: it will be
+-- converted to JSON and inserted as request body.
 --
 -- This body option sets the @Content-Type@ header to @\"application/json;
 -- charset=utf-8\"@ value.
@@ -1186,7 +1164,7 @@ instance ToJSON a => HttpBody (ReqBodyJson a) where
   getRequestContentType _ = pure "application/json; charset=utf-8"
 
 -- | This body option streams request body from a file. It is expected that
--- the file size does not change during the streaming.
+-- the file size does not change during streaming.
 --
 -- Using of this body option does not set the @Content-Type@ header.
 newtype ReqBodyFile = ReqBodyFile FilePath
@@ -1211,12 +1189,11 @@ newtype ReqBodyLbs = ReqBodyLbs BL.ByteString
 instance HttpBody ReqBodyLbs where
   getRequestBody (ReqBodyLbs bs) = L.RequestBodyLBS bs
 
--- | Form URL-encoded body. This can hold a collection of parameters which
--- are encoded similarly to query parameters at the end of query string,
--- with the only difference that they are stored in request body. The
--- similarity is reflected in the API as well, as you can use the same
--- combinators you would use to add query parameters: @('=:')@ and
--- 'queryFlag'.
+-- | URL-encoded body. This can hold a collection of parameters which are
+-- encoded similarly to query parameters at the end of query string, with
+-- the only difference that they are stored in request body. The similarity
+-- is reflected in the API as well, as you can use the same combinators you
+-- would use to add query parameters: @('=:')@ and 'queryFlag'.
 --
 -- This body option sets the @Content-Type@ header to
 -- @\"application/x-www-form-urlencoded\"@ value.
@@ -1302,9 +1279,6 @@ type family ProvidesBody body :: CanHaveBody where
 -- | This type function allows any HTTP body if method says it
 -- 'CanHaveBody'. When the method says it should have 'NoBody', the only
 -- body option to use is 'NoReqBody'.
---
--- __Note__: users of GHC 8.0.1 and later will see a slightly more friendly
--- error message when method does not allow a body and body is provided.
 type family
   HttpBodyAllowed
     (allowsBody :: CanHaveBody)
@@ -1317,8 +1291,8 @@ type family
     TypeError
       ('Text "This HTTP method does not allow attaching a request body.")
 
-instance HttpBody body => RequestComponent (Womb "body" body) where
-  getRequestMod (Womb body) = Endo $ \x ->
+instance HttpBody body => RequestComponent (Tagged "body" body) where
+  getRequestMod (Tagged body) = Endo $ \x ->
     x
       { L.requestBody = getRequestBody body,
         L.requestHeaders =
@@ -1347,8 +1321,8 @@ data Option (scheme :: Scheme)
   = Option (Endo (Y.QueryText, L.Request)) (Maybe (L.Request -> IO L.Request))
 
 -- NOTE 'QueryText' is just [(Text, Maybe Text)], we keep it along with
--- Request to avoid appending to existing query string in request every
--- time new parameter is added. Additional Maybe (L.Request -> IO
+-- Request to avoid appending to an existing query string in request every
+-- time new parameter is added. The additional Maybe (L.Request -> IO
 -- L.Request) is a finalizer that will be applied after all other
 -- transformations. This is for authentication methods that sign requests
 -- based on data in Request.
@@ -1405,7 +1379,7 @@ infix 7 =:
 (=:) :: (QueryParam param, ToHttpApiData a) => Text -> a -> param
 name =: value = queryParam name (pure value)
 
--- | Construct a flag, that is, valueless query parameter. For example, in
+-- | Construct a flag, that is, a valueless query parameter. For example, in
 -- the following URL @\"a\"@ is a flag, while @\"b\"@ is a query parameter
 -- with a value:
 --
@@ -1595,7 +1569,7 @@ customAuth = Option mempty . pure
 
 -- | Specify the port to connect to explicitly. Normally, 'Url' you use
 -- determines the default port: @80@ for HTTP and @443@ for HTTPS. This
--- 'Option' allows to choose an arbitrary port overwriting the defaults.
+-- 'Option' allows us to choose an arbitrary port overwriting the defaults.
 port :: Int -> Option scheme
 port n = withRequest $ \x ->
   x {L.port = n}
@@ -1610,8 +1584,8 @@ port n = withRequest $ \x ->
 --
 -- > decompress (const True)
 decompress ::
-  -- | Predicate that is given MIME type, it
-  -- returns 'True' when content should be decompressed on the fly.
+  -- | Predicate that is given MIME type, it returns 'True' when content
+  -- should be decompressed on the fly.
   (ByteString -> Bool) ->
   Option scheme
 decompress f = withRequest $ \x ->
@@ -1713,7 +1687,7 @@ lbsResponse = Proxy
 ----------------------------------------------------------------------------
 -- Helpers for response interpretations
 
--- | Fetch beginning of response and return it together with new
+-- | Fetch beginning of the response and return it together with a new
 -- @'L.Response' 'L.BodyReader'@ that can be passed to 'getHttpResponse' and
 -- such.
 grabPreview ::
@@ -1825,9 +1799,9 @@ responseCookieJar = L.responseCookieJar . toVanillaResponse
 -- To create a new response interpretation you just need to make your data
 -- type an instance of the 'HttpResponse' type class.
 
--- | A type class for response interpretations. It allows to describe how to
--- consume response from a @'L.Response' 'L.BodyReader'@ and produce the
--- final result that is to be returned to the user.
+-- | A type class for response interpretations. It allows us to describe how
+-- to consume the response from a @'L.Response' 'L.BodyReader'@ and produce
+-- the final result that is to be returned to the user.
 class HttpResponse response where
   -- | The associated type is the type of body that can be extracted from an
   -- instance of 'HttpResponse'.
@@ -1891,7 +1865,7 @@ class RequestComponent a where
 -- method@ and @'HttpBody' body => 'RequestComponent' body@ when it decides
 -- which instance to use (i.e. the constraints are taken into account later,
 -- when instance is already chosen).
-newtype Womb (tag :: Symbol) a = Womb a
+newtype Tagged (tag :: Symbol) a = Tagged a
 
 -- | Exceptions that this library throws.
 data HttpException
