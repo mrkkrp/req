@@ -1,3 +1,7 @@
+## Req 3.9.1
+
+* Builds with GHC 9.0.
+
 ## Req 3.9.0
 
 * The `useHttpURI` and `useHttpsURI` functions now preserve trailing
