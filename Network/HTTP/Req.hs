@@ -680,8 +680,8 @@ data HttpConfig = HttpConfig
     -- | The retry policy to use for request retrying. By default 'def' is
     -- used (see 'RetryPolicyM').
     --
-    -- __Note__: signature of this function was changed in the version
-    -- /1.0.0/.
+    -- __Note__: signature of this function was changed to disallow 'IO' in
+    -- version /1.0.0/ and then changed back to its current form in /3.1.0/.
     --
     -- @since 0.3.0
     httpConfigRetryPolicy :: RetryPolicyM IO,
