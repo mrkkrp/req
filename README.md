@@ -6,8 +6,6 @@
 [![Stackage LTS](http://stackage.org/package/req/badge/lts)](http://stackage.org/lts/package/req)
 ![CI](https://github.com/mrkkrp/req/workflows/CI/badge.svg?branch=master)
 
-* [Motivation and Req vs other libraries](#motivation-and-req-vs-other-libraries)
-* [Unsolved problems](#unsolved-problems)
 * [Related packages](#related-packages)
 * [Blog posts](#blog-posts)
 * [Contribution](#contribution)
