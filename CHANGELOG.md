@@ -1,3 +1,7 @@
+## Req 3.9.2
+
+* Works with `aeson-2.x.x.x`.
+
 ## Req 3.9.1
 
 * Builds with GHC 9.0.

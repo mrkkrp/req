@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -11,9 +12,10 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (ToJSON (..), Value (..), object, (.=))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.HashMap.Strict as HM
+import Data.Functor.Identity (runIdentity)
 import Data.Proxy
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -408,13 +410,13 @@ httpbin = https "httpbin.org"
 -- | Remove “origin” field from JSON value. Origin may change, we don't want
 -- to depend on that.
 stripOrigin :: Value -> Value
-stripOrigin (Object m) = Object (HM.delete "origin" m)
+stripOrigin (Object m) = Object (Aeson.KeyMap.delete "origin" m)
 stripOrigin value = value
 
 -- | Remove funny headers that might break the tests.
 stripFunnyHeaders :: Value -> Value
 stripFunnyHeaders (Object m) =
-  let f (Object p) = Object $ HM.filterWithKey (\k _ -> k `elem` hs) p
+  let f (Object p) = Object $ Aeson.KeyMap.filterWithKey (\k _ -> k `elem` hs) p
       f value = value
       hs =
         [ "Content-Type",
@@ -424,7 +426,7 @@ stripFunnyHeaders (Object m) =
           "Foo",
           "Baz"
         ]
-   in Object (HM.adjust f "headers" m)
+   in Object (runIdentity (Aeson.KeyMap.alterF (pure . fmap f) "headers" m))
 stripFunnyHeaders value = value
 
 -- | This is a complete test case that makes use of <https://httpbin.org> to
@@ -457,7 +459,7 @@ selector404 _ = False
 
 -- | The empty JSON 'Object'.
 emptyObject :: Value
-emptyObject = Object HM.empty
+emptyObject = Object Aeson.KeyMap.empty
 
 -- | Get a rendered JSON value as 'Text'.
 reflectJSON :: ToJSON a => a -> Text
