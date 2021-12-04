@@ -16,6 +16,7 @@ import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Functor.Identity (runIdentity)
+import Data.Maybe (fromJust)
 import Data.Proxy
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -135,7 +136,7 @@ spec = do
             LM.partBS "bar" "bar data!"
           ]
       r <- req POST (httpbin /: "post") body jsonResponse mempty
-      let Just contentType = getRequestContentType body
+      let contentType = fromJust (getRequestContentType body)
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
