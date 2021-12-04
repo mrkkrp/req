@@ -159,11 +159,13 @@ spec = do
           let uriHttp = uri' {URI.uriScheme = Just [QQ.scheme|http|]}
               uriHttps = uri' {URI.uriScheme = Just [QQ.scheme|https|]}
           requestHttp <-
-            let Left (url', options) = fromJust (useURI uriHttp)
-             in req_ GET url' NoReqBody options
+            case fromJust (useURI uriHttp) of
+              Left (url', options) -> req_ GET url' NoReqBody options
+              _ -> error "(useURI uriHttp) should have returned Left"
           requestHttps <-
-            let Right (url', options) = fromJust (useURI uriHttps)
-             in req_ GET url' NoReqBody options
+            case fromJust (useURI uriHttps) of
+              Right (url', options) -> req_ GET url' NoReqBody options
+              _ -> error "(useURI uriHttps) should have returned Right"
           L.host requestHttp `shouldBe` uriHost uriHttp
           L.host requestHttps `shouldBe` uriHost uriHttps
           L.port requestHttp `shouldBe` uriPort 80 uriHttp
