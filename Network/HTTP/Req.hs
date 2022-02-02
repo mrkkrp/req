@@ -220,7 +220,21 @@ import Control.Monad.Catch (Handler (..), MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift
 import Control.Monad.Reader
+import Control.Monad.Trans.Accum (AccumT)
+import Control.Monad.Trans.Cont (ContT)
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Except (ExceptT)
+import Control.Monad.Trans.Identity (IdentityT)
+import Control.Monad.Trans.Maybe (MaybeT)
+import qualified Control.Monad.Trans.RWS.CPS as RWS.CPS
+import qualified Control.Monad.Trans.RWS.Lazy as RWS.Lazy
+import qualified Control.Monad.Trans.RWS.Strict as RWS.Strict
+import Control.Monad.Trans.Select (SelectT)
+import qualified Control.Monad.Trans.State.Lazy as State.Lazy
+import qualified Control.Monad.Trans.State.Strict as State.Strict
+import qualified Control.Monad.Trans.Writer.CPS as Writer.CPS
+import qualified Control.Monad.Trans.Writer.Lazy as Writer.Lazy
+import qualified Control.Monad.Trans.Writer.Strict as Writer.Strict
 import Control.Retry
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
@@ -786,6 +800,81 @@ instance MonadBaseControl IO Req where
 instance MonadHttp Req where
   handleHttpException = Req . lift . throwIO
   getHttpConfig = Req ask
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (AccumT w m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (ContT r m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (ExceptT e m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (IdentityT m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (MaybeT m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (ReaderT r m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (RWS.CPS.RWST r w s m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (RWS.Lazy.RWST r w s m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (RWS.Strict.RWST r w s m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (SelectT r m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (State.Lazy.StateT s m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance MonadHttp m => MonadHttp (State.Strict.StateT s m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (Writer.CPS.WriterT w m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (Writer.Lazy.WriterT w m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
+
+-- | @since 3.9.3
+instance (MonadHttp m, Monoid w) => MonadHttp (Writer.Strict.WriterT w m) where
+  handleHttpException = lift . handleHttpException
+  getHttpConfig = lift getHttpConfig
 
 -- | Run a computation in the 'Req' monad with the given 'HttpConfig'. In
 -- the case of an exceptional situation an 'HttpException' will be thrown.

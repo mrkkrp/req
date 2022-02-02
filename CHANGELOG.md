@@ -1,3 +1,7 @@
+## Req 3.9.3
+
+* Add `MonadHttp` instances for `transformers` types.
+
 ## Req 3.9.2
 
 * The test suite works with `aeson-2.x.x.x`.
