@@ -1,4 +1,4 @@
-## Req 3.9.3
+## Req 3.10.0
 
 * Add `MonadHttp` instances for `transformers` types.
 

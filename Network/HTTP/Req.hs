@@ -801,77 +801,77 @@ instance MonadHttp Req where
   handleHttpException = Req . lift . throwIO
   getHttpConfig = Req ask
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (AccumT w m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (ContT r m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (ExceptT e m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (IdentityT m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (MaybeT m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (ReaderT r m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (RWS.CPS.RWST r w s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (RWS.Lazy.RWST r w s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (RWS.Strict.RWST r w s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (SelectT r m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (State.Lazy.StateT s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance MonadHttp m => MonadHttp (State.Strict.StateT s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (Writer.CPS.WriterT w m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (Writer.Lazy.WriterT w m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
--- | @since 3.9.3
+-- | @since 3.10.0
 instance (MonadHttp m, Monoid w) => MonadHttp (Writer.Strict.WriterT w m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
