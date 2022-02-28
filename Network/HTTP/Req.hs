@@ -155,6 +155,7 @@ module Network.HTTP.Req
     -- $query-parameters
     (=:),
     queryFlag,
+    formToQuery,
     QueryParam (..),
 
     -- *** Headers
@@ -272,6 +273,8 @@ import Text.URI (URI)
 import qualified Text.URI as URI
 import qualified Text.URI.QQ as QQ
 import qualified Web.Authenticate.OAuth as OAuth
+import Web.FormUrlEncoded (FromForm (..), ToForm (..))
+import qualified Web.FormUrlEncoded as Form
 import Web.HttpApiData (ToHttpApiData (..))
 
 ----------------------------------------------------------------------------
@@ -1303,6 +1306,13 @@ newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
 instance QueryParam FormUrlEncodedParam where
   queryParam name mvalue =
     FormUrlEncodedParam [(name, toQueryParam <$> mvalue)]
+  queryParamToList (FormUrlEncodedParam p) = p
+
+-- | Use 'formToQuery'.
+--
+-- @since 3.11.0
+instance FromForm FormUrlEncodedParam where
+  fromForm = Right . formToQuery
 
 -- | Multipart form data. Please consult the
 -- "Network.HTTP.Client.MultipartFormData" module for how to construct
@@ -1428,6 +1438,12 @@ instance Monoid (Option scheme) where
   mempty = Option mempty Nothing
   mappend = (<>)
 
+-- | Use 'formToQuery'.
+--
+-- @since 3.11.0
+instance FromForm (Option scheme) where
+  fromForm = Right . formToQuery
+
 -- | A helper to create an 'Option' that modifies only collection of query
 -- parameters. This helper is not a part of the public API.
 withQueryParams :: (Y.QueryText -> Y.QueryText) -> Option scheme
@@ -1482,6 +1498,24 @@ name =: value = queryParam name (pure value)
 queryFlag :: QueryParam param => Text -> param
 queryFlag name = queryParam name (Nothing :: Maybe ())
 
+-- | Construct query parameters from a 'ToForm' instance. This function
+-- produces the same query params as 'Form.urlEncodeAsFormStable'.
+--
+-- Note that 'Form.Form' doesn't have the concept of parameters with the
+-- empty value (i.e. what you can get by @key =: ""@). If the value is
+-- empty, it will be encoded as a valueless parameter (i.e. what you can get
+-- by @queryFlag key@).
+--
+-- @since 3.11.0
+formToQuery :: (QueryParam param, Monoid param, ToForm f) => f -> param
+formToQuery f = mconcat . fmap toParam . Form.toListStable $ toForm f
+  where
+    toParam (key, val) =
+      queryParam key $
+        if val == ""
+          then Nothing
+          else Just val
+
 -- | A type class for query-parameter-like things. The reason to have an
 -- overloaded 'queryParam' is to be able to use it as an 'Option' and as a
 -- 'FormUrlEncodedParam' when constructing form URL encoded request bodies.
@@ -1493,9 +1527,15 @@ class QueryParam param where
   -- method, because they are easier to read.
   queryParam :: ToHttpApiData a => Text -> Maybe a -> param
 
+  -- | Get the query parameter names and values set by 'queryParam'.
+  --
+  -- @since 3.11.0
+  queryParamToList :: param -> [(Text, Maybe Text)]
+
 instance QueryParam (Option scheme) where
   queryParam name mvalue =
     withQueryParams ((:) (name, toQueryParam <$> mvalue))
+  queryParamToList (Option f _) = fst $ appEndo f ([], L.defaultRequest)
 
 ----------------------------------------------------------------------------
 -- Request—Optional parameters—Headers
