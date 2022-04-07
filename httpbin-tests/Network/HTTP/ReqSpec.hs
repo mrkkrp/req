@@ -261,21 +261,17 @@ spec = do
   -- TODO /response-headers
   -- TODO /redirect
 
-  -- FIXME Redirects test is temporarily disabled due to
-  --
-  -- https://github.com/postmanlabs/httpbin/issues/617
-
-  -- describe "redirects" $
-  --   it "follows redirects" $ do
-  --     r <-
-  --       req
-  --         GET
-  --         (httpbin /: "redirect-to")
-  --         NoReqBody
-  --         ignoreResponse
-  --         ("url" =: ("https://httpbin.org" :: Text))
-  --     responseStatusCode r `shouldBe` 200
-  --     responseStatusMessage r `shouldBe` "OK"
+  describe "redirects" $
+    it "follows redirects" $ do
+      r <-
+        req
+          GET
+          (httpbin /: "redirect-to")
+          NoReqBody
+          ignoreResponse
+          ("url" =: ("https://httpbin.org" :: Text))
+      responseStatusCode r `shouldBe` 200
+      responseStatusMessage r `shouldBe` "OK"
 
   -- TODO /relative-redicet
   -- TODO /absolute-redirect
