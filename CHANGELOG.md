@@ -1,3 +1,8 @@
+## Req 3.12.0
+
+* Add `isStatusCodeException` function.
+* Add `instance HttpResponse (Network.HTTP.Client.Response ())`.
+
 ## Req 3.11.0
 
 * Add the `queryParamToList` method to the `QueryParam` type class.

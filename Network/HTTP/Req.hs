@@ -207,6 +207,7 @@ module Network.HTTP.Req
 
     -- * Other
     HttpException (..),
+    isStatusCodeException,
     CanHaveBody (..),
     Scheme (..),
   )
@@ -1971,6 +1972,16 @@ class HttpResponse response where
   acceptHeader :: Proxy response -> Maybe ByteString
   acceptHeader Proxy = Nothing
 
+-- | This instance has been added to make it easier to inspect 'L.Response'
+-- using Req's functions like 'responseStatusCode', 'responseStatusMessage',
+-- etc.
+--
+-- @since 3.12.0
+instance HttpResponse (L.Response ()) where
+  type HttpResponseBody (L.Response ()) = ()
+  toVanillaResponse = id
+  getHttpResponse = return . void
+
 ----------------------------------------------------------------------------
 -- Other
 
@@ -2008,6 +2019,20 @@ data HttpException
   deriving (Show, Typeable, Generic)
 
 instance Exception HttpException
+
+-- | Return 'Just' if the given 'HttpException' is wrapping a http-client's
+-- 'L.StatusCodeException'. Otherwise, return 'Nothing'.
+--
+-- @since 3.12.0
+isStatusCodeException :: HttpException -> Maybe (L.Response ())
+isStatusCodeException
+  ( VanillaHttpException
+      ( L.HttpExceptionRequest
+          _
+          (L.StatusCodeException r _)
+        )
+    ) = Just r
+isStatusCodeException _ = Nothing
 
 -- | A simple type isomorphic to 'Bool' that we only have for better error
 -- messages. We use it as a kind and its data constructors as type-level
