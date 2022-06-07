@@ -8,7 +8,7 @@
 module Network.HTTP.ReqSpec (spec) where
 
 import Control.Exception
-import Control.Monad.Reader
+import Control.Monad (forM_)
 import Control.Monad.Trans.Control
 import Data.Aeson (ToJSON (..), Value (..), object, (.=))
 import qualified Data.Aeson as A
