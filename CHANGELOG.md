@@ -1,3 +1,8 @@
+## Req 3.13.0
+
+* Add `headerRedacted` function to add header fields, which will be with
+  redacted values on print.
+
 ## Req 3.12.0
 
 * Add `isStatusCodeException` function.

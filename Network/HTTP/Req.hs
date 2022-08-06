@@ -161,6 +161,7 @@ module Network.HTTP.Req
     -- *** Headers
     header,
     attachHeader,
+    headerRedacted,
 
     -- *** Cookies
     -- $cookies
@@ -255,6 +256,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import Data.Proxy
 import Data.Semigroup (Endo (..))
+import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -1560,6 +1562,14 @@ header name value = withRequest (attachHeader name value)
 attachHeader :: ByteString -> ByteString -> L.Request -> L.Request
 attachHeader name value x =
   x {L.requestHeaders = (CI.mk name, value) : L.requestHeaders x}
+
+-- | Same as 'header', but with redacted values on print.
+--
+-- @since 3.13.0
+headerRedacted :: ByteString -> ByteString -> Option scheme
+headerRedacted name value = withRequest $ \x ->
+  let y = attachHeader name value x
+   in y {L.redactHeaders = CI.mk name `S.insert` L.redactHeaders y}
 
 ----------------------------------------------------------------------------
 -- Request—Optional parameters—Cookies
