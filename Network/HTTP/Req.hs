@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -1048,12 +1047,7 @@ instance Typeable scheme => TH.Lift (Url scheme) where
       Url Https _ -> [t|Url 'Https|]
     where
       liftText t = TH.AppE (TH.VarE 'T.pack) <$> TH.lift (T.unpack t)
-
-#if MIN_VERSION_template_haskell(2,17,0)
   liftTyped = TH.Code . TH.unsafeTExpCoerce . TH.lift
-#elif MIN_VERSION_template_haskell(2,16,0)
-  liftTyped = TH.unsafeTExpCoerce . TH.lift
-#endif
 
 -- | Given host name, produce a 'Url' which has “http” as its scheme and
 -- empty path. This also sets port to @80@.
