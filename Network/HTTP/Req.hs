@@ -498,7 +498,7 @@ reqCb method url body responseProxy options adjustRequest =
 --
 -- @since 3.7.0
 reqHandler ::
-  MonadHttp m =>
+  (MonadHttp m) =>
   -- | How to get final result from a 'L.Response'
   (L.Response L.BodyReader -> IO b) ->
   -- | 'L.Request' to perform
@@ -596,7 +596,7 @@ req' method url body options m = do
 -- | Perform an action using the global implicit 'L.Manager' that the rest
 -- of the library uses. This allows to reuse connections that the
 -- 'L.Manager' controls.
-withReqManager :: MonadIO m => (L.Manager -> m a) -> m a
+withReqManager :: (MonadIO m) => (L.Manager -> m a) -> m a
 withReqManager m = liftIO (readIORef globalManager) >>= m
 
 -- | The global 'L.Manager' that 'req' uses. Here we just go with the
@@ -639,7 +639,7 @@ globalManager = unsafePerformIO $ do
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
 -- unless you want to tweak 'HttpConfig'.
-class MonadIO m => MonadHttp m where
+class (MonadIO m) => MonadHttp m where
   -- | This method describes how to deal with 'HttpException' that was
   -- caught by the library. One option is to re-throw it if you are OK with
   -- exceptions, but if you prefer working with something like
@@ -723,7 +723,7 @@ data HttpConfig = HttpConfig
     -- | Max length of preview fragment of response body.
     --
     -- @since 3.6.0
-    httpConfigBodyPreviewLength :: forall a. Num a => a
+    httpConfigBodyPreviewLength :: forall a. (Num a) => a
   }
   deriving (Typeable)
 
@@ -813,27 +813,27 @@ instance (MonadHttp m, Monoid w) => MonadHttp (AccumT w m) where
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (ContT r m) where
+instance (MonadHttp m) => MonadHttp (ContT r m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (ExceptT e m) where
+instance (MonadHttp m) => MonadHttp (ExceptT e m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (IdentityT m) where
+instance (MonadHttp m) => MonadHttp (IdentityT m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (MaybeT m) where
+instance (MonadHttp m) => MonadHttp (MaybeT m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (ReaderT r m) where
+instance (MonadHttp m) => MonadHttp (ReaderT r m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
@@ -853,17 +853,17 @@ instance (MonadHttp m, Monoid w) => MonadHttp (RWS.Strict.RWST r w s m) where
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (SelectT r m) where
+instance (MonadHttp m) => MonadHttp (SelectT r m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (State.Lazy.StateT s m) where
+instance (MonadHttp m) => MonadHttp (State.Lazy.StateT s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
 -- | @since 3.10.0
-instance MonadHttp m => MonadHttp (State.Strict.StateT s m) where
+instance (MonadHttp m) => MonadHttp (State.Strict.StateT s m) where
   handleHttpException = lift . handleHttpException
   getHttpConfig = lift getHttpConfig
 
@@ -887,7 +887,7 @@ instance (MonadHttp m, Monoid w) => MonadHttp (Writer.Strict.WriterT w m) where
 --
 -- @since 0.4.0
 runReq ::
-  MonadIO m =>
+  (MonadIO m) =>
   -- | 'HttpConfig' to use
   HttpConfig ->
   -- | Computation to run
@@ -992,7 +992,7 @@ class HttpMethod a where
   -- | Return name of the method as a 'ByteString'.
   httpMethodName :: Proxy a -> ByteString
 
-instance HttpMethod method => RequestComponent (Tagged "method" method) where
+instance (HttpMethod method) => RequestComponent (Tagged "method" method) where
   getRequestMod _ = Endo $ \x ->
     x {L.method = httpMethodName (Proxy :: Proxy method)}
 
@@ -1040,7 +1040,7 @@ type role Url nominal
 
 -- With template-haskell >=2.15 and text >=1.2.4 Lift can be derived, however
 -- the derived lift forgets the type of the scheme.
-instance Typeable scheme => TH.Lift (Url scheme) where
+instance (Typeable scheme) => TH.Lift (Url scheme) where
   lift url =
     TH.dataToExpQ (fmap liftText . cast) url `TH.sigE` case url of
       Url Http _ -> [t|Url 'Http|]
@@ -1063,7 +1063,7 @@ https = Url Https . pure
 -- path segment can be of any type that is an instance of 'ToHttpApiData'.
 infixl 5 /~
 
-(/~) :: ToHttpApiData a => Url scheme -> a -> Url scheme
+(/~) :: (ToHttpApiData a) => Url scheme -> a -> Url scheme
 Url secure path /~ segment = Url secure (NE.cons (toUrlPiece segment) path)
 
 -- | A type-constrained version of @('/~')@ to remove ambiguity in the cases
@@ -1251,7 +1251,7 @@ instance HttpBody NoReqBody where
 -- charset=utf-8\"@ value.
 newtype ReqBodyJson a = ReqBodyJson a
 
-instance ToJSON a => HttpBody (ReqBodyJson a) where
+instance (ToJSON a) => HttpBody (ReqBodyJson a) where
   getRequestBody (ReqBodyJson a) = L.RequestBodyLBS (A.encode a)
   getRequestContentType _ = pure "application/json; charset=utf-8"
 
@@ -1350,7 +1350,7 @@ instance HttpBody ReqBodyMultipart where
 -- | Create 'ReqBodyMultipart' request body from a collection of 'LM.Part's.
 --
 -- @since 0.2.0
-reqBodyMultipart :: MonadIO m => [LM.Part] -> m ReqBodyMultipart
+reqBodyMultipart :: (MonadIO m) => [LM.Part] -> m ReqBodyMultipart
 reqBodyMultipart parts = liftIO $ do
   boundary <- LM.webkitBoundary
   body <- LM.renderParts boundary parts
@@ -1390,7 +1390,7 @@ type family
     TypeError
       ('Text "This HTTP method does not allow attaching a request body.")
 
-instance HttpBody body => RequestComponent (Tagged "body" body) where
+instance (HttpBody body) => RequestComponent (Tagged "body" body) where
   getRequestMod (Tagged body) = Endo $ \x ->
     x
       { L.requestBody = getRequestBody body,
@@ -1460,7 +1460,7 @@ instance RequestComponent (Option scheme) where
 
 -- | Finalize given 'L.Request' by applying a finalizer from the given
 -- 'Option' (if it has any).
-finalizeRequest :: MonadIO m => Option scheme -> L.Request -> m L.Request
+finalizeRequest :: (MonadIO m) => Option scheme -> L.Request -> m L.Request
 finalizeRequest (Option _ mfinalizer) = liftIO . fromMaybe pure mfinalizer
 
 ----------------------------------------------------------------------------
@@ -1493,7 +1493,7 @@ name =: value = queryParam name (pure value)
 -- This operator is defined in terms of 'queryParam':
 --
 -- > queryFlag name = queryParam name (Nothing :: Maybe ())
-queryFlag :: QueryParam param => Text -> param
+queryFlag :: (QueryParam param) => Text -> param
 queryFlag name = queryParam name (Nothing :: Maybe ())
 
 -- | Construct query parameters from a 'ToForm' instance. This function
@@ -1523,7 +1523,7 @@ class QueryParam param where
   -- 'Nothing', it won't be included at all (i.e. you create a flag this
   -- way). It's recommended to use @('=:')@ and 'queryFlag' instead of this
   -- method, because they are easier to read.
-  queryParam :: ToHttpApiData a => Text -> Maybe a -> param
+  queryParam :: (ToHttpApiData a) => Text -> Maybe a -> param
 
   -- | Get the query parameter names and values set by 'queryParam'.
   --
@@ -1772,7 +1772,7 @@ ignoreResponse = Proxy
 newtype JsonResponse a = JsonResponse (L.Response a)
   deriving (Show)
 
-instance FromJSON a => HttpResponse (JsonResponse a) where
+instance (FromJSON a) => HttpResponse (JsonResponse a) where
   type HttpResponseBody (JsonResponse a) = a
   toVanillaResponse (JsonResponse r) = r
   getHttpResponse r = do
@@ -1888,14 +1888,14 @@ brReadN br n = go 0 id id
 
 -- | Get the response body.
 responseBody ::
-  HttpResponse response =>
+  (HttpResponse response) =>
   response ->
   HttpResponseBody response
 responseBody = L.responseBody . toVanillaResponse
 
 -- | Get the response status code.
 responseStatusCode ::
-  HttpResponse response =>
+  (HttpResponse response) =>
   response ->
   Int
 responseStatusCode =
@@ -1903,7 +1903,7 @@ responseStatusCode =
 
 -- | Get the response status message.
 responseStatusMessage ::
-  HttpResponse response =>
+  (HttpResponse response) =>
   response ->
   ByteString
 responseStatusMessage =
@@ -1911,7 +1911,7 @@ responseStatusMessage =
 
 -- | Lookup a particular header from a response.
 responseHeader ::
-  HttpResponse response =>
+  (HttpResponse response) =>
   -- | Response interpretation
   response ->
   -- | Header to lookup
@@ -1923,7 +1923,7 @@ responseHeader r h =
 
 -- | Get the response 'L.CookieJar'.
 responseCookieJar ::
-  HttpResponse response =>
+  (HttpResponse response) =>
   response ->
   L.CookieJar
 responseCookieJar = L.responseCookieJar . toVanillaResponse

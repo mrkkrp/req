@@ -413,7 +413,7 @@ spec = do
         -- 'Https, Option _) type checks, so we can catch if the type of scheme
         -- is unspecified.
         let testTypeOfQuoterResult ::
-              forall a s. Typeable a => (a, Option s) -> Bool
+              forall a s. (Typeable a) => (a, Option s) -> Bool
             testTypeOfQuoterResult _ = isJust $ eqT @a @(Url 'Https)
          in property $ testTypeOfQuoterResult [urlQ|https://example.org/|]
       it "doesn't work for invalid urls" $
