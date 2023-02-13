@@ -471,7 +471,7 @@ emptyObject :: Value
 emptyObject = Object Aeson.KeyMap.empty
 
 -- | Get a rendered JSON value as 'Text'.
-reflectJSON :: ToJSON a => a -> Text
+reflectJSON :: (ToJSON a) => a -> Text
 reflectJSON = T.decodeUtf8 . BL.toStrict . A.encode
 
 -- | Clarify to the type checker that the inner computation is in the 'IO'
