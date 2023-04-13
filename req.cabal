@@ -52,21 +52,15 @@ library
         retry >=0.8 && <0.10,
         template-haskell >=2.14 && <2.20,
         text >=0.2 && <2.1,
-        time >=1.2 && <1.13,
         transformers >=0.5.3.0 && <0.7,
         transformers-base,
         unliftio-core >=0.1.1 && <0.3
 
     if flag(dev)
-        ghc-options: -O0 -Wall -Werror
+        ghc-options: -Wall -Werror -Wpartial-fields -Wunused-packages
 
     else
         ghc-options: -O2 -Wall
-
-    if flag(dev)
-        ghc-options:
-            -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
-            -Wnoncanonical-monad-instances
 
 test-suite pure-tests
     type:               exitcode-stdio-1.0
@@ -96,7 +90,7 @@ test-suite pure-tests
         time >=1.2 && <1.13
 
     if flag(dev)
-        ghc-options: -O0 -Wall -Werror
+        ghc-options: -Wall -Werror
 
     else
         ghc-options: -O2 -Wall
@@ -122,7 +116,7 @@ test-suite httpbun-tests
         text >=0.2 && <2.1
 
     if flag(dev)
-        ghc-options: -O0 -Wall -Werror
+        ghc-options: -Wall -Werror
 
     else
         ghc-options: -O2 -Wall
