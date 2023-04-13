@@ -43,4 +43,6 @@ jobs:
       - run: cabal build $CONFIG
       - run: cabal test $CONFIG
       - run: cabal haddock $CONFIG
+        # Haddock fails to build, see https://github.com/haskell/cabal/issues/9060
+        if: ${{ matrix.ghc != '9.2.7' }}
       - run: cabal sdist
