@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -11,21 +10,21 @@ import Control.Exception
 import Control.Monad (forM_)
 import Control.Monad.Trans.Control
 import Data.Aeson (ToJSON (..), Value (..), object, (.=))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as Aeson.KeyMap
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as BL
 import Data.Functor.Identity (runIdentity)
 import Data.Maybe (fromJust)
 import Data.Proxy
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as TIO
-import qualified Network.HTTP.Client as L
-import qualified Network.HTTP.Client.MultipartFormData as LM
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.IO qualified as TIO
+import Network.HTTP.Client qualified as L
+import Network.HTTP.Client.MultipartFormData qualified as LM
 import Network.HTTP.Req
-import qualified Network.HTTP.Types as Y
+import Network.HTTP.Types qualified as Y
 import Test.Hspec
 import Test.QuickCheck
 

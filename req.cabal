@@ -31,7 +31,7 @@ flag dev
 
 library
     exposed-modules:  Network.HTTP.Req
-    default-language: Haskell2010
+    default-language: GHC2021
     build-depends:
         aeson >=0.9 && <3,
         authenticate-oauth >=1.5 && <1.8,
@@ -74,7 +74,7 @@ test-suite pure-tests
     build-tool-depends: hspec-discover:hspec-discover >=2.0 && <3.0
     hs-source-dirs:     pure-tests
     other-modules:      Network.HTTP.ReqSpec
-    default-language:   Haskell2010
+    default-language:   GHC2021
     build-depends:
         QuickCheck >=2.7 && <3.0,
         aeson >=0.9 && <3,
@@ -107,7 +107,7 @@ test-suite httpbun-tests
     build-tool-depends: hspec-discover:hspec-discover >=2.0 && <3.0
     hs-source-dirs:     httpbun-tests
     other-modules:      Network.HTTP.ReqSpec
-    default-language:   Haskell2010
+    default-language:   GHC2021
     build-depends:
         QuickCheck >=2.7 && <3.0,
         aeson >=2 && <3,
