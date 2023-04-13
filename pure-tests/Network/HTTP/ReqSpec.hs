@@ -13,41 +13,41 @@
 
 module Network.HTTP.ReqSpec (spec) where
 
-import qualified Blaze.ByteString.Builder as BB
+import Blaze.ByteString.Builder qualified as BB
 import Control.Exception (throwIO)
 import Control.Monad
 import Control.Retry
 import Data.Aeson (ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString qualified as B
+import Data.ByteString.Char8 qualified as B8
+import Data.ByteString.Lazy qualified as BL
+import Data.CaseInsensitive qualified as CI
 import Data.Either (isRight)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe (fromJust, fromMaybe, isJust, isNothing)
 import Data.Proxy
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.Typeable (Typeable, eqT)
 import GHC.Exts (IsList (..))
 import GHC.Generics
-import qualified Language.Haskell.TH as TH
-import qualified Language.Haskell.TH.Quote as TH
-import qualified Network.HTTP.Client as L
+import Language.Haskell.TH qualified as TH
+import Language.Haskell.TH.Quote qualified as TH
+import Network.HTTP.Client qualified as L
 import Network.HTTP.Req
-import qualified Network.HTTP.Types as Y
-import qualified Network.HTTP.Types.Header as Y
+import Network.HTTP.Types qualified as Y
+import Network.HTTP.Types.Header qualified as Y
 import Test.Hspec
 import Test.Hspec.Core.Spec (SpecM)
 import Test.QuickCheck
 import Text.URI (URI)
-import qualified Text.URI as URI
-import qualified Text.URI.QQ as QQ
-import qualified Web.FormUrlEncoded as F
+import Text.URI qualified as URI
+import Text.URI.QQ qualified as QQ
+import Web.FormUrlEncoded qualified as F
 
 spec :: Spec
 spec = do

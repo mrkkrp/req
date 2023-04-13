@@ -1,19 +1,9 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveLift #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RoleAnnotations #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -213,7 +203,7 @@ module Network.HTTP.Req
   )
 where
 
-import qualified Blaze.ByteString.Builder as BB
+import Blaze.ByteString.Builder qualified as BB
 import Control.Applicative
 import Control.Arrow (first, second)
 import Control.Exception hiding (Handler (..), TypeError)
@@ -229,55 +219,55 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Identity (IdentityT)
 import Control.Monad.Trans.Maybe (MaybeT)
-import qualified Control.Monad.Trans.RWS.CPS as RWS.CPS
-import qualified Control.Monad.Trans.RWS.Lazy as RWS.Lazy
-import qualified Control.Monad.Trans.RWS.Strict as RWS.Strict
+import Control.Monad.Trans.RWS.CPS qualified as RWS.CPS
+import Control.Monad.Trans.RWS.Lazy qualified as RWS.Lazy
+import Control.Monad.Trans.RWS.Strict qualified as RWS.Strict
 import Control.Monad.Trans.Select (SelectT)
-import qualified Control.Monad.Trans.State.Lazy as State.Lazy
-import qualified Control.Monad.Trans.State.Strict as State.Strict
-import qualified Control.Monad.Trans.Writer.CPS as Writer.CPS
-import qualified Control.Monad.Trans.Writer.Lazy as Writer.Lazy
-import qualified Control.Monad.Trans.Writer.Strict as Writer.Strict
+import Control.Monad.Trans.State.Lazy qualified as State.Lazy
+import Control.Monad.Trans.State.Strict qualified as State.Strict
+import Control.Monad.Trans.Writer.CPS qualified as Writer.CPS
+import Control.Monad.Trans.Writer.Lazy qualified as Writer.Lazy
+import Control.Monad.Trans.Writer.Strict qualified as Writer.Strict
 import Control.Retry
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as BL
+import Data.CaseInsensitive qualified as CI
 import Data.Data (Data)
 import Data.Function (on)
 import Data.IORef
 import Data.Kind (Constraint, Type)
 import Data.List (foldl', nubBy)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe (fromMaybe)
 import Data.Proxy
 import Data.Semigroup (Endo (..))
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Typeable (Typeable, cast)
 import GHC.Generics
 import GHC.TypeLits
-import qualified Language.Haskell.TH as TH
-import qualified Language.Haskell.TH.Quote as TH
-import qualified Language.Haskell.TH.Syntax as TH
-import qualified Network.Connection as NC
-import qualified Network.HTTP.Client as L
-import qualified Network.HTTP.Client.Internal as LI
-import qualified Network.HTTP.Client.MultipartFormData as LM
-import qualified Network.HTTP.Client.TLS as L
-import qualified Network.HTTP.Types as Y
+import Language.Haskell.TH qualified as TH
+import Language.Haskell.TH.Quote qualified as TH
+import Language.Haskell.TH.Syntax qualified as TH
+import Network.Connection qualified as NC
+import Network.HTTP.Client qualified as L
+import Network.HTTP.Client.Internal qualified as LI
+import Network.HTTP.Client.MultipartFormData qualified as LM
+import Network.HTTP.Client.TLS qualified as L
+import Network.HTTP.Types qualified as Y
 import System.IO.Unsafe (unsafePerformIO)
 import Text.URI (URI)
-import qualified Text.URI as URI
-import qualified Text.URI.QQ as QQ
-import qualified Web.Authenticate.OAuth as OAuth
+import Text.URI qualified as URI
+import Text.URI.QQ qualified as QQ
+import Web.Authenticate.OAuth qualified as OAuth
 import Web.FormUrlEncoded (FromForm (..), ToForm (..))
-import qualified Web.FormUrlEncoded as Form
+import Web.FormUrlEncoded qualified as Form
 import Web.HttpApiData (ToHttpApiData (..))
 
 ----------------------------------------------------------------------------
