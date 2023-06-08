@@ -4,6 +4,8 @@
   https://httpbin.org since the latter proved to be highly unreliable
   lately.
 
+* Switched from `connection` to `crypton-connection`.
+
 ## Req 3.13.0
 
 * Add `headerRedacted` function to add header fields, which will be with
