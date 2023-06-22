@@ -33,25 +33,25 @@ spec :: Spec
 spec = do
   describe "exception throwing on non-2xx status codes" $
     it "throws indeed for non-2xx" $
-      req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
+      req GET (httpbun /: "foo") NoReqBody ignoreResponse mempty
         `shouldThrow` selector404
 
   describe "exception throwing on non-2xx status codes (Req monad)" $
     it "throws indeed for non-2xx" $
       asIO . runReq defaultHttpConfig $
         liftBaseWith $ \run ->
-          run (req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty)
+          run (req GET (httpbun /: "foo") NoReqBody ignoreResponse mempty)
             `shouldThrow` selector404
 
   describe "response check via httpConfigCheckResponse" $
     context "if it's set to always throw" $
       it "throws indeed" $
-        blindlyThrowing (req GET httpbin NoReqBody ignoreResponse mempty)
+        blindlyThrowing (req GET httpbun NoReqBody ignoreResponse mempty)
           `shouldThrow` anyException
 
   describe "isStatusCodeException" $
     it "extracts non-2xx response" $
-      req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
+      req GET (httpbun /: "foo") NoReqBody ignoreResponse mempty
         `shouldThrow` selector404ByStatusCodeException
 
   describe "receiving user-agent header back" $
@@ -59,7 +59,7 @@ spec = do
       r <-
         req
           GET
-          (httpbin /: "user-agent")
+          (httpbun /: "user-agent")
           NoReqBody
           jsonResponse
           (header "user-agent" "Req")
@@ -74,7 +74,7 @@ spec = do
       r <-
         req
           GET
-          (httpbin /: "headers")
+          (httpbun /: "headers")
           NoReqBody
           jsonResponse
           (header "Foo" "bar" <> header "Baz" "quux")
@@ -84,8 +84,7 @@ spec = do
               .= object
                 [ "Accept-Encoding" .= ("gzip" :: Text),
                   "Foo" .= ("bar" :: Text),
-                  "Baz" .= ("quux" :: Text),
-                  "Host" .= ("httpbin.org" :: Text)
+                  "Baz" .= ("quux" :: Text)
                 ]
           ]
       responseStatusCode r `shouldBe` 200
@@ -93,15 +92,15 @@ spec = do
 
   describe "receiving GET data back" $
     it "works" $ do
-      r <- req GET (httpbin /: "get") NoReqBody jsonResponse mempty
+      r <- req GET (httpbun /: "get") NoReqBody jsonResponse mempty
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
-            "url" .= ("https://httpbin.org/get" :: Text),
+            "url" .= ("https://httpbun.org/get" :: Text),
+            "method" .= ("GET" :: Text),
             "headers"
               .= object
-                [ "Accept-Encoding" .= ("gzip" :: Text),
-                  "Host" .= ("httpbin.org" :: Text)
+                [ "Accept-Encoding" .= ("gzip" :: Text)
                 ]
           ]
       responseHeader r "Content-Type" `shouldBe` return "application/json"
@@ -112,18 +111,18 @@ spec = do
     it "works" $ do
       let text = "foo" :: Text
           reflected = reflectJSON text
-      r <- req POST (httpbin /: "post") (ReqBodyJson text) jsonResponse mempty
+      r <- req POST (httpbun /: "post") (ReqBodyJson text) jsonResponse mempty
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
             "json" .= text,
             "data" .= reflected,
-            "url" .= ("https://httpbin.org/post" :: Text),
+            "url" .= ("https://httpbun.org/post" :: Text),
+            "method" .= ("POST" :: Text),
             "headers"
               .= object
                 [ "Content-Type" .= ("application/json; charset=utf-8" :: Text),
                   "Accept-Encoding" .= ("gzip" :: Text),
-                  "Host" .= ("httpbin.org" :: Text),
                   "Content-Length" .= show (T.length reflected)
                 ],
             "files" .= emptyObject,
@@ -140,19 +139,19 @@ spec = do
           [ LM.partBS "foo" "foo data!",
             LM.partBS "bar" "bar data!"
           ]
-      r <- req POST (httpbin /: "post") body jsonResponse mempty
+      r <- req POST (httpbun /: "post") body jsonResponse mempty
       let contentType = fromJust (getRequestContentType body)
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
             "json" .= Null,
             "data" .= ("" :: Text),
-            "url" .= ("https://httpbin.org/post" :: Text),
+            "url" .= ("https://httpbun.org/post" :: Text),
+            "method" .= ("POST" :: Text),
             "headers"
               .= object
                 [ "Content-Type" .= T.decodeUtf8 contentType,
                   "Accept-Encoding" .= ("gzip" :: Text),
-                  "Host" .= ("httpbin.org" :: Text),
                   "Content-Length" .= ("242" :: Text)
                 ],
             "files" .= emptyObject,
@@ -169,19 +168,19 @@ spec = do
   describe "receiving PATCHed file back" $
     it "works" $ do
       let file :: FilePath
-          file = "httpbin-data/robots.txt"
+          file = "httpbun-data/robots.txt"
       contents <- TIO.readFile file
-      r <- req PATCH (httpbin /: "patch") (ReqBodyFile file) jsonResponse mempty
+      r <- req PATCH (httpbun /: "patch") (ReqBodyFile file) jsonResponse mempty
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
             "json" .= Null,
             "data" .= contents,
-            "url" .= ("https://httpbin.org/patch" :: Text),
+            "url" .= ("https://httpbun.org/patch" :: Text),
+            "method" .= ("PATCH" :: Text),
             "headers"
               .= object
                 [ "Accept-Encoding" .= ("gzip" :: Text),
-                  "Host" .= ("httpbin.org" :: Text),
                   "Content-Length" .= show (T.length contents)
                 ],
             "files" .= emptyObject,
@@ -197,18 +196,18 @@ spec = do
             "foo" =: ("bar" :: Text)
               <> "baz" =: (5 :: Int)
               <> queryFlag "quux"
-      r <- req PUT (httpbin /: "put") (ReqBodyUrlEnc params) jsonResponse mempty
+      r <- req PUT (httpbun /: "put") (ReqBodyUrlEnc params) jsonResponse mempty
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
             "json" .= Null,
             "data" .= ("" :: Text),
-            "url" .= ("https://httpbin.org/put" :: Text),
+            "url" .= ("https://httpbun.org/put" :: Text),
+            "method" .= ("PUT" :: Text),
             "headers"
               .= object
                 [ "Content-Type" .= ("application/x-www-form-urlencoded" :: Text),
                   "Accept-Encoding" .= ("gzip" :: Text),
-                  "Host" .= ("httpbin.org" :: Text),
                   "Content-Length" .= ("18" :: Text)
                 ],
             "files" .= emptyObject,
@@ -223,24 +222,19 @@ spec = do
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  -- TODO /delete
-
-  describe "receiving UTF-8 encoded Unicode data" $
-    it "works" $ do
-      r <-
-        req
-          GET
-          (httpbin /: "encoding" /: "utf8")
-          NoReqBody
-          bsResponse
-          mempty
-      utf8data <- B.readFile "httpbin-data/utf8.html"
-      responseBody r `shouldBe` utf8data
-      responseStatusCode r `shouldBe` 200
-      responseStatusMessage r `shouldBe` "OK"
-
-  -- TODO /gzip
-  -- TODO /deflate
+  -- describe "receiving UTF-8 encoded Unicode data" $
+  --   it "works" $ do
+  --     r <-
+  --       req
+  --         GET
+  --         (httpbun /: "encoding" /: "utf8")
+  --         NoReqBody
+  --         bsResponse
+  --         mempty
+  --     utf8data <- B.readFile "httpbun-data/utf8.html"
+  --     responseBody r `shouldBe` utf8data
+  --     responseStatusCode r `shouldBe` 200
+  --     responseStatusMessage r `shouldBe` "OK"
 
   describe "retrying" $
     it "retries as many times as specified" $ do
@@ -251,7 +245,7 @@ spec = do
         prepareForShit $
           req
             GET
-            (httpbin /: "status" /~ status)
+            (httpbun /: "status" /~ status)
             NoReqBody
             ignoreResponse
             mempty
@@ -263,24 +257,17 @@ spec = do
   forM_ [400 .. 431] checkStatusCode
   forM_ [500 .. 511] checkStatusCode
 
-  -- TODO /response-headers
-  -- TODO /redirect
-
   describe "redirects" $
     it "follows redirects" $ do
       r <-
         req
           GET
-          (httpbin /: "redirect-to")
+          (httpbun /: "redirect-to")
           NoReqBody
           ignoreResponse
-          ("url" =: ("https://httpbin.org" :: Text))
+          ("url" =: ("https://httpbun.org" :: Text))
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
-
-  -- TODO /relative-redicet
-  -- TODO /absolute-redirect
-  -- TODO /cookies
 
   describe "basicAuth" $ do
     let user, password :: Text
@@ -292,42 +279,31 @@ spec = do
           prepareForShit $
             req
               GET
-              (httpbin /: "basic-auth" /~ user /~ password)
+              (httpbun /: "basic-auth" /~ user /~ password)
               NoReqBody
               ignoreResponse
               mempty
         responseStatusCode r `shouldBe` 401
-        responseStatusMessage r `shouldBe` "UNAUTHORIZED"
+        responseStatusMessage r `shouldBe` "Unauthorized"
     context "when we provide appropriate basic auth data" $
       it "succeeds" $ do
         r <-
           req
             GET
-            (httpbin /: "basic-auth" /~ user /~ password)
+            (httpbun /: "basic-auth" /~ user /~ password)
             NoReqBody
             ignoreResponse
             (basicAuth (T.encodeUtf8 user) (T.encodeUtf8 password))
         responseStatusCode r `shouldBe` 200
         responseStatusMessage r `shouldBe` "OK"
 
-  -- TODO /hidden-basic-auth
-  -- TODO /digest-auth
-  -- TODO /stream
-  -- TODO /delay
-  -- TODO /drip
-  -- TODO /range
-  -- TODO /html
-
   describe "robots.txt" $
     it "works" $ do
-      r <- req GET (httpbin /: "robots.txt") NoReqBody bsResponse mempty
-      robots <- B.readFile "httpbin-data/robots.txt"
+      r <- req GET (httpbun /: "robots.txt") NoReqBody bsResponse mempty
+      robots <- B.readFile "httpbun-data/robots.txt"
       responseBody r `shouldBe` robots
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
-
-  -- TODO /deny
-  -- TODO /cache
 
   describe "getting random bytes" $ do
     it "works" $
@@ -337,7 +313,7 @@ spec = do
         r <-
           req
             GET
-            (httpbin /: "bytes" /~ n)
+            (httpbun /: "bytes" /~ n)
             NoReqBody
             lbsResponse
             mempty
@@ -353,36 +329,27 @@ spec = do
             n = 1000
         req
           GET
-          (httpbin /: "bytes" /~ n)
+          (httpbun /: "bytes" /~ n)
           NoReqBody
           (Proxy :: Proxy (JsonResponse Value))
           mempty
           `shouldThrow` selector
 
-  describe "streaming random bytes" $
-    it "works" $
-      property $ \n' -> do
-        let n :: Word
-            n = getSmall n'
-        r <-
-          req
-            GET
-            (httpbin /: "stream-bytes" /~ n)
-            NoReqBody
-            bsResponse
-            mempty
-        responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
-        responseStatusCode r `shouldBe` 200
-        responseStatusMessage r `shouldBe` "OK"
-
--- TODO /links
--- TODO /image
--- TODO /image/png
--- TODO /image/jpeg
--- TODO /image/webp
--- TODO /image/svg
--- TODO /forms/post
--- TODO /xml
+-- describe "streaming random bytes" $
+--   it "works" $
+--     property $ \n' -> do
+--       let n :: Word
+--           n = getSmall n'
+--       r <-
+--         req
+--           GET
+--           (httpbun /: "stream-bytes" /~ n)
+--           NoReqBody
+--           bsResponse
+--           mempty
+--       responseBody r `shouldSatisfy` ((== n) . fromIntegral . B.length)
+--       responseStatusCode r `shouldBe` 200
+--       responseStatusMessage r `shouldBe` "OK"
 
 ----------------------------------------------------------------------------
 -- Instances
@@ -405,9 +372,9 @@ blindlyThrowing = runReq defaultHttpConfig {httpConfigCheckResponse = doit}
   where
     doit _ _ = error "Oops!"
 
--- | 'Url' representing <https://httpbin.org>.
-httpbin :: Url 'Https
-httpbin = https "httpbin.org"
+-- | 'Url' representing <https://httpbun.org>.
+httpbun :: Url 'Https
+httpbun = https "httpbun.org"
 
 -- | Remove “origin” field from JSON value. Origin may change, we don't want
 -- to depend on that.
@@ -431,7 +398,7 @@ stripFunnyHeaders (Object m) =
    in Object (runIdentity (Aeson.KeyMap.alterF (pure . fmap f) "headers" m))
 stripFunnyHeaders value = value
 
--- | This is a complete test case that makes use of <https://httpbin.org> to
+-- | This is a complete test case that makes use of <https://httpbun.org> to
 -- get various response status codes.
 checkStatusCode :: Int -> SpecWith ()
 checkStatusCode code =
@@ -441,7 +408,7 @@ checkStatusCode code =
         prepareForShit $
           req
             GET
-            (httpbin /: "status" /~ code)
+            (httpbun /: "status" /~ code)
             NoReqBody
             ignoreResponse
             mempty
