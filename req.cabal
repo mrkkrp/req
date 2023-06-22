@@ -13,8 +13,8 @@ description:     HTTP client library.
 category:        Network, Web
 build-type:      Simple
 data-files:
-    httpbin-data/utf8.html
-    httpbin-data/robots.txt
+    httpbun-data/utf8.html
+    httpbun-data/robots.txt
 
 extra-doc-files:
     CHANGELOG.md
@@ -101,11 +101,11 @@ test-suite pure-tests
     else
         ghc-options: -O2 -Wall
 
-test-suite httpbin-tests
+test-suite httpbun-tests
     type:               exitcode-stdio-1.0
     main-is:            Spec.hs
     build-tool-depends: hspec-discover:hspec-discover >=2.0 && <3.0
-    hs-source-dirs:     httpbin-tests
+    hs-source-dirs:     httpbun-tests
     other-modules:      Network.HTTP.ReqSpec
     default-language:   Haskell2010
     build-depends:

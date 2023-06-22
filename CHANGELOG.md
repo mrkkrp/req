@@ -1,3 +1,9 @@
+## Unreleased
+
+* Switched the non-pure test suite to use https://httpbun.org instead of
+  https://httpbin.org since the latter proved to be highly unreliable
+  lately.
+
 ## Req 3.13.0
 
 * Add `headerRedacted` function to add header fields, which will be with
