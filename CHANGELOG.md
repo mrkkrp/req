@@ -1,4 +1,4 @@
-## Unreleased
+## Req 3.13.1
 
 * Switched the non-pure test suite to use https://httpbun.org instead of
   https://httpbin.org since the latter proved to be highly unreliable
