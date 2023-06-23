@@ -6,6 +6,8 @@
 
 * Switched from `connection` to `crypton-connection`.
 
+* Builds with GHC 9.6.1.
+
 ## Req 3.13.0
 
 * Add `headerRedacted` function to add header fields, which will be with
