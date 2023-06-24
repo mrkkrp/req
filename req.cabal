@@ -82,7 +82,6 @@ test-suite pure-tests
         http-client >=0.7 && <0.8,
         http-types >=0.8 && <10.0,
         modern-uri >=0.3 && <0.4,
-        mtl >=2.0 && <3.0,
         req,
         retry >=0.8 && <0.10,
         template-haskell >=2.14 && <2.21,
@@ -90,7 +89,9 @@ test-suite pure-tests
         time >=1.2 && <1.13
 
     if flag(dev)
-        ghc-options: -Wall -Werror
+        ghc-options:
+            -Wall -Werror -Wredundant-constraints -Wpartial-fields
+            -Wunused-packages
 
     else
         ghc-options: -O2 -Wall
@@ -111,12 +112,13 @@ test-suite httpbun-tests
         http-client >=0.7 && <0.8,
         http-types >=0.8 && <10.0,
         monad-control >=1.0 && <1.1,
-        mtl >=2.0 && <3.0,
         req,
         text >=0.2 && <2.1
 
     if flag(dev)
-        ghc-options: -Wall -Werror
+        ghc-options:
+            -Wall -Werror -Wredundant-constraints -Wpartial-fields
+            -Wunused-packages
 
     else
         ghc-options: -O2 -Wall
