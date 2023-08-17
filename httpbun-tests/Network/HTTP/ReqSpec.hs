@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -77,14 +78,11 @@ spec = do
           NoReqBody
           jsonResponse
           (header "Foo" "bar" <> header "Baz" "quux")
-      stripFunnyHeaders (responseBody r)
+      stripFunnyHeaders' (responseBody r)
         `shouldBe` object
-          [ "headers"
-              .= object
-                [ "Accept-Encoding" .= ("gzip" :: Text),
-                  "Foo" .= ("bar" :: Text),
-                  "Baz" .= ("quux" :: Text)
-                ]
+          [ "Accept-Encoding" .= ("gzip" :: Text),
+            "Foo" .= ("bar" :: Text),
+            "Baz" .= ("quux" :: Text)
           ]
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
@@ -383,19 +381,36 @@ stripOrigin value = value
 
 -- | Remove funny headers that might break the tests.
 stripFunnyHeaders :: Value -> Value
-stripFunnyHeaders (Object m) =
-  let f (Object p) = Object $ Aeson.KeyMap.filterWithKey (\k _ -> k `elem` hs) p
-      f value = value
-      hs =
-        [ "Content-Type",
-          "Accept-Encoding",
-          "Host",
-          "Content-Length",
-          "Foo",
-          "Baz"
-        ]
-   in Object (runIdentity (Aeson.KeyMap.alterF (pure . fmap f) "headers" m))
-stripFunnyHeaders value = value
+stripFunnyHeaders = \case
+  Object m ->
+    Object
+      ( runIdentity
+          ( Aeson.KeyMap.alterF
+              (pure . fmap stripFunnyHeaders')
+              "headers"
+              m
+          )
+      )
+  value -> value
+
+-- | Similar to 'stripFunnyHeaders', but acts directly on the argument
+-- without trying to access its "headers" field.
+stripFunnyHeaders' :: Value -> Value
+stripFunnyHeaders' = \case
+  Object p ->
+    Object $
+      Aeson.KeyMap.filterWithKey
+        (\k _ -> k `elem` whitelistedHeaders)
+        p
+  value -> value
+  where
+    whitelistedHeaders =
+      [ "Content-Type",
+        "Accept-Encoding",
+        "Content-Length",
+        "Foo",
+        "Baz"
+      ]
 
 -- | This is a complete test case that makes use of <https://httpbun.org> to
 -- get various response status codes.
