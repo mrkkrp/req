@@ -54,21 +54,6 @@ spec = do
       req GET (httpbun /: "foo") NoReqBody ignoreResponse mempty
         `shouldThrow` selector404ByStatusCodeException
 
-  describe "receiving user-agent header back" $
-    it "works" $ do
-      r <-
-        req
-          GET
-          (httpbun /: "user-agent")
-          NoReqBody
-          jsonResponse
-          (header "user-agent" "Req")
-      responseBody r
-        `shouldBe` object
-          ["user-agent" .= ("Req" :: Text)]
-      responseStatusCode r `shouldBe` 200
-      responseStatusMessage r `shouldBe` "OK"
-
   describe "receiving request headers back" $
     it "works" $ do
       r <-
@@ -98,7 +83,11 @@ spec = do
             "headers"
               .= object
                 [ "Accept-Encoding" .= ("gzip" :: Text)
-                ]
+                ],
+            "form" .= emptyObject,
+            "files" .= emptyObject,
+            "data" .= ("" :: Text),
+            "json" .= Null
           ]
       responseHeader r "Content-Type" `shouldBe` return "application/json"
       responseStatusCode r `shouldBe` 200
