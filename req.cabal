@@ -5,7 +5,7 @@ license:         BSD-3-Clause
 license-file:    LICENSE.md
 maintainer:      Mark Karpov <markkarpov92@gmail.com>
 author:          Mark Karpov <markkarpov92@gmail.com>
-tested-with:     ghc ==9.2.8 ghc ==9.4.5 ghc ==9.6.2
+tested-with:     ghc ==9.2.8 ghc ==9.4.7 ghc ==9.6.2
 homepage:        https://github.com/mrkkrp/req
 bug-reports:     https://github.com/mrkkrp/req/issues
 synopsis:        HTTP client library
