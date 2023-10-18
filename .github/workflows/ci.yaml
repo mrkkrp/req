@@ -19,12 +19,12 @@ jobs:
     strategy:
       matrix:
         cabal: ["3.10"]
-        ghc: ["9.2.8", "9.4.7", "9.6.2"]
+        ghc: ["9.4.7", "9.6.3", "9.8.1"]
     env:
       CONFIG: "--enable-tests --enable-benchmarks --flags=dev"
     steps:
       - uses: actions/checkout@v4
-      - uses: haskell/actions/setup@v2
+      - uses: haskell-actions/setup@v2
         id: setup-haskell-cabal
         with:
           ghc-version: ${{ matrix.ghc }}
@@ -43,6 +43,4 @@ jobs:
       - run: cabal build $CONFIG
       - run: cabal test $CONFIG
       - run: cabal haddock $CONFIG
-        # Haddock fails to build, see https://github.com/haskell/cabal/issues/9060
-        if: ${{ matrix.ghc != '9.2.8' }}
       - run: cabal sdist
