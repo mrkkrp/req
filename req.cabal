@@ -13,8 +13,8 @@ description:     HTTP client library.
 category:        Network, Web
 build-type:      Simple
 data-files:
-    httpbun-data/utf8.html
-    httpbun-data/robots.txt
+    httpbin-data/utf8.html
+    httpbin-data/robots.txt
 
 extra-doc-files:
     CHANGELOG.md
@@ -96,11 +96,11 @@ test-suite pure-tests
     else
         ghc-options: -O2 -Wall
 
-test-suite httpbun-tests
+test-suite httpbin-tests
     type:               exitcode-stdio-1.0
     main-is:            Spec.hs
     build-tool-depends: hspec-discover:hspec-discover >=2 && <3
-    hs-source-dirs:     httpbun-tests
+    hs-source-dirs:     httpbin-tests
     other-modules:      Network.HTTP.ReqSpec
     default-language:   GHC2021
     build-depends:
@@ -121,4 +121,4 @@ test-suite httpbun-tests
             -Wunused-packages
 
     else
-        ghc-options: -O2 -Wall
+        buildable: False

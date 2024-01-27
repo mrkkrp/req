@@ -1,3 +1,9 @@
+## Req 3.13.2
+
+* Disable the problematic `httpbin-tests` test suite by default. Only enable
+  it when the `dev` flag is enabled. In that case it is expected that an
+  httpbin server is run locally at `localhost:1234`.
+
 ## Req 3.13.1
 
 * Switched the non-pure test suite to use https://httpbun.org instead of
