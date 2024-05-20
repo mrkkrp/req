@@ -236,6 +236,7 @@ import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.CaseInsensitive qualified as CI
 import Data.Data (Data)
+import Data.Default.Class (def)
 import Data.Function (on)
 import Data.IORef
 import Data.Kind (Constraint, Type)
@@ -606,7 +607,7 @@ globalManager = unsafePerformIO $ do
   let settings =
         L.mkManagerSettingsContext
           (Just context)
-          (NC.TLSSettingsSimple False False False)
+          (NC.TLSSettingsSimple False False False def)
           Nothing
   manager <- L.newManager settings
   newIORef manager
