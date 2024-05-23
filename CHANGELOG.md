@@ -1,3 +1,7 @@
+## Req 3.13.3
+
+* Works with `crypton-connection-0.4` and newer.
+
 ## Req 3.13.2
 
 * Disable the problematic `httpbin-tests` test suite by default. Only enable
