@@ -5,7 +5,7 @@ license:         BSD-3-Clause
 license-file:    LICENSE.md
 maintainer:      Mark Karpov <markkarpov92@gmail.com>
 author:          Mark Karpov <markkarpov92@gmail.com>
-tested-with:     ghc ==9.4.7 ghc ==9.6.3 ghc ==9.8.1
+tested-with:     ghc ==9.6.3 ghc ==9.8.2 ghc ==9.10.1
 homepage:        https://github.com/mrkkrp/req
 bug-reports:     https://github.com/mrkkrp/req/issues
 synopsis:        HTTP client library
@@ -51,14 +51,16 @@ library
         monad-control >=1.0 && <1.1,
         mtl >=2.0 && <3.0,
         retry >=0.8 && <0.10,
-        template-haskell >=2.19 && <2.22,
+        template-haskell >=2.19 && <2.23,
         text >=0.2 && <2.2,
         transformers >=0.5.3.0 && <0.7,
         transformers-base,
         unliftio-core >=0.1.1 && <0.3
 
     if flag(dev)
-        ghc-options: -Wall -Werror -Wpartial-fields -Wunused-packages
+        ghc-options:
+            -Wall -Werror -Wpartial-fields -Wunused-packages
+            -Wno-unused-imports
 
     else
         ghc-options: -O2 -Wall
@@ -85,7 +87,7 @@ test-suite pure-tests
         modern-uri >=0.3 && <0.4,
         req,
         retry >=0.8 && <0.10,
-        template-haskell >=2.19 && <2.22,
+        template-haskell >=2.19 && <2.23,
         text >=0.2 && <2.2,
         time >=1.2 && <1.13
 
