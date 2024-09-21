@@ -607,7 +607,7 @@ globalManager = unsafePerformIO $ do
   let settings =
         L.mkManagerSettingsContext
           (Just context)
-          (NC.TLSSettingsSimple False False False def)
+          def
           Nothing
   manager <- L.newManager settings
   newIORef manager
