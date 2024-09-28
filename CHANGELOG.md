@@ -1,3 +1,9 @@
+## Req 3.13.4
+
+* Fixed empty ciphersuite list when compiling against `tls < 2.0.6`
+  (see [PR 175](https://github.com/mrkkrp/req/pull/175)). As a side effect, now
+  compatible with older versions of `crypton-connection` (>= 0.3).
+
 ## Req 3.13.3
 
 * Works with `crypton-connection-0.4` and newer.
