@@ -585,10 +585,10 @@ req' method url body options m = do
   withReqManager (m request)
 
 -- | Perform an action using the global implicit 'L.Manager' that the rest
--- of the library uses. This allows to reuse connections that the
+-- of the library uses. This allows us to reuse connections that the
 -- 'L.Manager' controls.
 withReqManager :: (MonadIO m) => (L.Manager -> m a) -> m a
-withReqManager m = liftIO (readIORef globalManager) >>= m
+withReqManager m = m globalManager
 
 -- | The global 'L.Manager' that 'req' uses. Here we just go with the
 -- default settings, so users don't need to deal with this manager stuff at
@@ -601,7 +601,7 @@ withReqManager m = liftIO (readIORef globalManager) >>= m
 -- manager. From that moment on the 'IORef' will be just reused—exactly the
 -- behavior we want here in order to maximize connection sharing. GHC could
 -- spoil the plan by inlining the definition, hence the @NOINLINE@ pragma.
-globalManager :: IORef L.Manager
+globalManager :: L.Manager
 globalManager = unsafePerformIO $ do
   context <- NC.initConnectionContext
   let settings =
@@ -610,7 +610,7 @@ globalManager = unsafePerformIO $ do
           def
           Nothing
   manager <- L.newManager settings
-  newIORef manager
+  return manager
 {-# NOINLINE globalManager #-}
 
 ----------------------------------------------------------------------------
