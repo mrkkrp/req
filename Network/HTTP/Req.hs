@@ -716,7 +716,6 @@ data HttpConfig = HttpConfig
     -- @since 3.6.0
     httpConfigBodyPreviewLength :: forall a. (Num a) => a
   }
-  deriving (Typeable)
 
 -- | The default value of 'HttpConfig'.
 --
@@ -1025,7 +1024,7 @@ instance (HttpMethod method) => RequestComponent (Tagged "method" method) where
 -- > -- https://%D1%8E%D0%BD%D0%B8%D0%BA%D0%BE%D0%B4.%D1%80%D1%84
 data Url (scheme :: Scheme) = Url Scheme (NonEmpty Text)
   -- NOTE The second value is the path segments in reversed order.
-  deriving (Eq, Ord, Show, Data, Typeable, Generic)
+  deriving (Eq, Ord, Show, Data, Generic)
 
 type role Url nominal
 
@@ -2012,7 +2011,7 @@ data HttpException
   | -- | A wrapper with Aeson-produced 'String' describing why decoding
     -- failed
     JsonHttpException String
-  deriving (Show, Typeable, Generic)
+  deriving (Show, Generic)
 
 instance Exception HttpException
 
@@ -2049,4 +2048,4 @@ data Scheme
     Http
   | -- | HTTPS
     Https
-  deriving (Eq, Ord, Show, Data, Typeable, Generic, TH.Lift)
+  deriving (Eq, Ord, Show, Data, Generic, TH.Lift)
