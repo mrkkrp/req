@@ -4,7 +4,7 @@
 [![Hackage](https://img.shields.io/hackage/v/req.svg?style=flat)](https://hackage.haskell.org/package/req)
 [![Stackage Nightly](http://stackage.org/package/req/badge/nightly)](http://stackage.org/nightly/package/req)
 [![Stackage LTS](http://stackage.org/package/req/badge/lts)](http://stackage.org/lts/package/req)
-![CI](https://github.com/mrkkrp/req/workflows/CI/badge.svg?branch=master)
+[![CI](https://github.com/mrkkrp/req/actions/workflows/ci.yaml/badge.svg)](https://github.com/mrkkrp/req/actions/workflows/ci.yaml)
 
 * [Related packages](#related-packages)
 * [Blog posts](#blog-posts)
