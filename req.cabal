@@ -89,7 +89,7 @@ test-suite pure-tests
         retry >=0.8 && <0.10,
         template-haskell >=2.19 && <2.23,
         text >=0.2 && <2.2,
-        time >=1.2 && <1.13
+        time >=1.2 && <1.15
 
     if flag(dev)
         ghc-options:
