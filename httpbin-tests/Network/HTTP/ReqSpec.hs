@@ -97,7 +97,7 @@ spec = do
       (stripFunnyHeaders . stripOrigin) (responseBody r)
         `shouldBe` object
           [ "args" .= emptyObject,
-            "url" .= ("http://localhost:1234/get" :: Text),
+            "url" .= (targetUrl <> "/get"),
             "headers"
               .= object
                 [ "Accept-Encoding" .= ("gzip" :: Text)
@@ -117,7 +117,7 @@ spec = do
           [ "args" .= emptyObject,
             "json" .= text,
             "data" .= reflected,
-            "url" .= ("http://localhost:1234/post" :: Text),
+            "url" .= (targetUrl <> "/post"),
             "headers"
               .= object
                 [ "Content-Type" .= ("application/json; charset=utf-8" :: Text),
@@ -145,7 +145,7 @@ spec = do
           [ "args" .= emptyObject,
             "json" .= Null,
             "data" .= ("" :: Text),
-            "url" .= ("http://localhost:1234/post" :: Text),
+            "url" .= (targetUrl <> "/post"),
             "headers"
               .= object
                 [ "Content-Type" .= T.decodeUtf8 contentType,
@@ -174,7 +174,7 @@ spec = do
           [ "args" .= emptyObject,
             "json" .= Null,
             "data" .= contents,
-            "url" .= ("http://localhost:1234/patch" :: Text),
+            "url" .= (targetUrl <> "/patch"),
             "headers"
               .= object
                 [ "Accept-Encoding" .= ("gzip" :: Text),
@@ -199,7 +199,7 @@ spec = do
           [ "args" .= emptyObject,
             "json" .= Null,
             "data" .= ("" :: Text),
-            "url" .= ("http://localhost:1234/put" :: Text),
+            "url" .= (targetUrl <> "/put"),
             "headers"
               .= object
                 [ "Content-Type" .= ("application/x-www-form-urlencoded" :: Text),
@@ -269,11 +269,11 @@ spec = do
           (httpbin /: "redirect-to")
           NoReqBody
           ignoreResponse
-          ("url" =: ("https://httpbin.org" :: Text))
+          ("url" =: targetUrl)
       responseStatusCode r `shouldBe` 200
       responseStatusMessage r `shouldBe` "OK"
 
-  -- TODO /relative-redicet
+  -- TODO /relative-redirect
   -- TODO /absolute-redirect
   -- TODO /cookies
 
@@ -388,6 +388,15 @@ instance MonadHttp IO where
 ----------------------------------------------------------------------------
 -- Helpers
 
+targetPort :: Int
+targetPort = 1234
+
+targetHost :: Text
+targetHost = "localhost"
+
+targetUrl :: Text
+targetUrl = "http://" <> targetHost <> ":" <> T.pack (show targetPort)
+
 -- | Run a request with such settings that it does not signal errors.
 prepareForShit :: Req a -> IO a
 prepareForShit = runReq defaultHttpConfig {httpConfigCheckResponse = noNoise}
@@ -402,7 +411,7 @@ blindlyThrowing = runReq defaultHttpConfig {httpConfigCheckResponse = doit}
 
 -- | 'Url' representing <https://httpbin.org>.
 httpbin :: Url 'Http
-httpbin = http "localhost"
+httpbin = http targetHost
 
 req ::
   ( MonadHttp m,
@@ -422,7 +431,7 @@ req method url body responseProxy options =
 
 -- | Options to apply by default.
 defaultOptions :: Option scheme
-defaultOptions = port 1234
+defaultOptions = port targetPort
 
 -- | Remove “origin” field from JSON value. Origin may change, we don't want
 -- to depend on that.
