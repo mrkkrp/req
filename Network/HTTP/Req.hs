@@ -530,6 +530,7 @@ reqHandler consume request manager = do
                 )
             )
         (preview, r') <- grabPreview httpConfigBodyPreviewLength r
+        httpConfigLogResponse request r' preview
         mapM_ LI.throwHttp (httpConfigCheckResponse request r' preview)
         consume r'
     )
@@ -688,6 +689,15 @@ data HttpConfig = HttpConfig
       L.Response b ->
       ByteString ->
       Maybe L.HttpExceptionContent,
+
+    -- | Function to log incoming responses
+    -- Useful for debugging and other stuff.
+    httpConfigLogResponse ::
+      forall b.
+      L.Request ->
+      L.Response b ->
+      ByteString ->
+      IO (),
     -- | The retry policy to use for request retrying. By default 'def' is
     -- used (see 'RetryPolicyM').
     --
@@ -731,6 +741,7 @@ defaultHttpConfig =
          in if 200 <= scode && scode < 300
               then Nothing
               else Just (L.StatusCodeException (void response) preview),
+      httpConfigLogResponse = \_ _ _ -> pure (),
       httpConfigRetryPolicy = retryPolicyDefault,
       httpConfigRetryJudge = \_ response ->
         statusCode response
