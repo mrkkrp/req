@@ -190,6 +190,7 @@ module Network.HTTP.Req
     responseStatusMessage,
     responseHeader,
     responseCookieJar,
+    responseLinks,
 
     -- ** Defining your own interpretation
     -- $new-response-interpretation
@@ -270,6 +271,8 @@ import Web.Authenticate.OAuth qualified as OAuth
 import Web.FormUrlEncoded (FromForm (..), ToForm (..))
 import Web.FormUrlEncoded qualified as Form
 import Web.HttpApiData (ToHttpApiData (..))
+
+import Network.HTTP.Req.Links as Links
 
 ----------------------------------------------------------------------------
 -- Making a request
@@ -1910,6 +1913,24 @@ responseHeader ::
   Maybe ByteString
 responseHeader r h =
   (lookup (CI.mk h) . L.responseHeaders . toVanillaResponse) r
+
+-- | Look up URIs with the given attribute from a Link header.
+--
+-- Returns 'URI's because we don't know the scheme in advance.
+--
+-- >>> responseLinks "rel" "next" response :: Maybe [URI]
+-- Just [...]
+responseLinks ::
+  (HttpResponse response, MonadThrow m) =>
+  ByteString ->
+  ByteString ->
+  response ->
+  m [URI]
+responseLinks key val r =
+  let hdr = responseHeader r "Link"
+      lnks = maybe [] Links.links hdr
+      wanted = filter (\(Link _ params) -> (key,val) `elem` params) lnks
+    in traverse URI.mkURIBs $ Links.linkBs <$> wanted
 
 -- | Get the response 'L.CookieJar'.
 responseCookieJar ::
