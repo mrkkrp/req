@@ -40,7 +40,6 @@ import Language.Haskell.TH.Quote qualified as TH
 import Network.HTTP.Client qualified as L
 import Network.HTTP.Req
 import Network.HTTP.Types qualified as Y
-import Network.HTTP.Types.Header qualified as Y
 import Test.Hspec
 import Test.Hspec.Core.Spec (SpecM)
 import Test.QuickCheck
