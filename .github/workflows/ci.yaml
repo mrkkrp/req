@@ -7,41 +7,11 @@ on:
     types:
       - opened
       - synchronize
+
 jobs:
-  ormolu:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: haskell-actions/run-ormolu@v17
-  build:
-    runs-on: ubuntu-latest
-    needs: ormolu
-    strategy:
-      matrix:
-        cabal: ["3.16"]
-        ghc: ["9.10.3", "9.12.2", "9.14.1"]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: haskell-actions/setup@v2
-        id: setup-haskell-cabal
-        with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
-      - run: cabal update
-      - run: cabal freeze
-      - uses: actions/cache@v5.0.2
-        with:
-          path: |
-            ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
-            dist-newstyle
-          key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.ghc }}-
-      - run: cabal format && git diff --exit-code --color=always
-      - run: cabal build
-      - run: |
-          docker pull kennethreitz/httpbin
-          docker run -p 1234:80 kennethreitz/httpbin &
-          cabal test
-      - run: cabal haddock
-      - run: cabal sdist
+  ci:
+    uses: mrkkrp/haskell-ci/.github/workflows/haskell-ci.yml@master
+    with:
+      pre-test-script: |
+        docker pull kennethreitz/httpbin
+        docker run -p 1234:80 kennethreitz/httpbin &
