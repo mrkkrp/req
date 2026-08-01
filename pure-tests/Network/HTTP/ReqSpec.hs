@@ -415,9 +415,9 @@ spec = do
               forall a s. (Typeable a) => (a, Option s) -> Bool
             testTypeOfQuoterResult _ = isJust $ eqT @a @(Url 'Https)
          in property $ testTypeOfQuoterResult [urlQ|https://example.org/|]
-      it "doesn't work for invalid urls" $
-        property $
-          TH.runQ (TH.quoteExp urlQ "not a url") `shouldThrow` anyIOException
+      it "doesn't work for invalid urls"
+        $ property
+        $ TH.runQ (TH.quoteExp urlQ "not a url") `shouldThrow` anyIOException
 
 ----------------------------------------------------------------------------
 -- Instances

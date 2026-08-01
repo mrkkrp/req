@@ -72,10 +72,10 @@
 --     * <https://hackage.haskell.org/package/http-client-tls>—TLS (HTTPS)
 --       support for @http-client@.
 --
--- It's important to note that since we leverage well-known libraries that
--- the whole Haskell ecosystem uses, there is no risk in using @req@. The
--- machinery for performing requests is the same as with @http-conduit@ and
--- @wreq@. The only difference is the API.
+-- It's worth noting that since we leverage well-known libraries used
+-- throughout the Haskell ecosystem, there is no risk in using @req@. The
+-- machinery for performing requests is the same as in @http-conduit@ and
+-- @wreq@; the only difference is the API.
 module Network.HTTP.Req
   ( -- * Making a request
     -- $making-a-request
@@ -288,15 +288,15 @@ import Web.HttpApiData (ToHttpApiData (..))
 -- @method@ is an HTTP method such as 'GET' or 'POST'. The documentation has
 -- a dedicated section about HTTP methods below.
 --
--- @url@ is a 'Url' that describes location of resource you want to interact
--- with.
+-- @url@ is a 'Url' that describes the location of the resource you want to
+-- interact with.
 --
 -- @body@ is a body option such as 'NoReqBody' or 'ReqBodyJson'. The
 -- tutorial has a section about HTTP bodies, but usage is very
 -- straightforward and should be clear from the examples.
 --
--- @response@ is a type hint how to make and interpret response of an HTTP
--- request. Out-of-the-box it can be the following:
+-- @response@ is a type hint on how to make and interpret the response of an
+-- HTTP request. Out of the box it can be the following:
 --
 --     * 'ignoreResponse'
 --     * 'jsonResponse'
@@ -312,7 +312,7 @@ import Web.HttpApiData (ToHttpApiData (..))
 -- __Note__ that if you use 'req' to do all your requests, connection
 -- sharing and reuse is done for you automatically.
 --
--- See the examples below to get on the speed quickly.
+-- See the examples below to get up to speed quickly.
 --
 -- ==== __Examples__
 --
@@ -536,7 +536,7 @@ reqHandler consume request manager = do
     >>= either handleHttpException return
 
 -- | Mostly like 'req' with respect to its arguments, but accepts a callback
--- that allows to perform a request in arbitrary fashion.
+-- that allows the request to be performed in an arbitrary fashion.
 --
 -- This function /does not/ perform handling\/wrapping exceptions, checking
 -- response (with 'httpConfigCheckResponse'), and retrying. It only prepares
@@ -598,7 +598,7 @@ withReqManager m = m globalManager
 -- A note about safety, in case 'unsafePerformIO' looks suspicious to you.
 -- The value of 'globalManager' is named and lives on top level. This means
 -- it will be shared, i.e. computed only once on the first use of the
--- manager. From that moment on the 'IORef' will be just reused—exactly the
+-- manager. From that moment on the 'IORef' will simply be reused—exactly the
 -- behavior we want here in order to maximize connection sharing. GHC could
 -- spoil the plan by inlining the definition, hence the @NOINLINE@ pragma.
 globalManager :: L.Manager
@@ -622,10 +622,10 @@ globalManager = unsafePerformIO $ do
 -- instance of the 'MonadHttp' type class.
 --
 -- When writing a library, keep your API polymorphic in terms of
--- 'MonadHttp', only define instance of 'MonadHttp' in final application.
--- Another option is to use a @newtype@-wrapped monad stack and define
--- 'MonadHttp' for it. As of the version /0.4.0/, the 'Req' monad that
--- follows this strategy is provided out-of-the-box (see below).
+-- 'MonadHttp', and only define an instance of 'MonadHttp' in the final
+-- application. Another option is to use a @newtype@-wrapped monad stack and
+-- define 'MonadHttp' for it. As of version /0.4.0/, the 'Req' monad that
+-- follows this strategy is provided out of the box (see below).
 
 -- | A type class for monads that support performing HTTP requests.
 -- Typically, you only need to define the 'handleHttpException' method
@@ -668,11 +668,11 @@ data HttpConfig = HttpConfig
     -- desirable).
     --
     -- When the value this function returns is 'Nothing', nothing will
-    -- happen. When it there is 'L.HttpExceptionContent' inside 'Just', it
+    -- happen. When there is an 'L.HttpExceptionContent' inside 'Just', it
     -- will be thrown.
     --
-    -- Throwing is better then just returning a request with non-2xx status
-    -- code because in that case something is wrong and we need a way to
+    -- Throwing is better than just returning a request with a non-2xx status
+    -- code, because in that case something is wrong and we need a way to
     -- short-cut execution (also remember that Req retries automatically on
     -- request timeouts and such, so when your request fails, it's certainly
     -- something exceptional). The thrown exception is caught by the library
@@ -893,9 +893,9 @@ runReq config (Req m) = liftIO (runReaderT m config)
 -- The package supports all methods as defined by RFC 2616, and 'PATCH'
 -- which is defined by RFC 5789—that should be enough to talk to RESTful
 -- APIs. In some cases, however, you may want to add more methods (e.g. you
--- work with WebDAV <https://en.wikipedia.org/wiki/WebDAV>); no need to
--- compromise on type safety and hack, it only takes a couple of seconds to
--- define a new method that will works seamlessly, see 'HttpMethod'.
+-- work with WebDAV <https://en.wikipedia.org/wiki/WebDAV>); there is no need
+-- to compromise on type safety or resort to hacks—it takes only a couple of
+-- seconds to define a new method that works seamlessly, see 'HttpMethod'.
 
 -- | 'GET' method.
 data GET = GET
@@ -974,12 +974,12 @@ instance HttpMethod PATCH where
 -- >   httpMethodName Proxy = "COPY"
 class HttpMethod a where
   -- | Type function 'AllowsBody' returns a type of kind 'CanHaveBody' which
-  -- tells the rest of the library whether the method can have body or not.
+  -- tells the rest of the library whether the method can have a body or not.
   -- We use the special type 'CanHaveBody' lifted to the kind level instead
   -- of 'Bool' to get more user-friendly compiler messages.
   type AllowsBody a :: CanHaveBody
 
-  -- | Return name of the method as a 'ByteString'.
+  -- | Return the name of the method as a 'ByteString'.
   httpMethodName :: Proxy a -> ByteString
 
 instance (HttpMethod method) => RequestComponent (Tagged "method" method) where
@@ -997,10 +997,10 @@ instance (HttpMethod method) => RequestComponent (Tagged "method" method) where
 -- | Request's 'Url'. Start constructing your 'Url' with 'http' or 'https'
 -- specifying the scheme and host at the same time. Then use the @('/~')@
 -- and @('/:')@ operators to grow the path one piece at a time. Every single
--- piece of path will be url(percent)-encoded, so using @('/~')@ and
--- @('/:')@ is the only way to have forward slashes between path segments.
--- This approach makes working with dynamic path segments easy and safe. See
--- examples below how to represent various 'Url's (make sure the
+-- path piece will be URL(percent)-encoded, so using @('/~')@ and @('/:')@ is
+-- the only way to have forward slashes between path segments. This approach
+-- makes working with dynamic path segments easy and safe. See the examples
+-- below for how to represent various 'Url's (make sure the
 -- @OverloadedStrings@ language extension is enabled).
 --
 -- ==== __Examples__
@@ -1039,13 +1039,13 @@ instance (Typeable scheme) => TH.Lift (Url scheme) where
       liftText t = TH.AppE (TH.VarE 'T.pack) <$> TH.lift (T.unpack t)
   liftTyped = TH.Code . TH.unsafeTExpCoerce . TH.lift
 
--- | Given host name, produce a 'Url' which has “http” as its scheme and
--- empty path. This also sets port to @80@.
+-- | Given a host name, produce a 'Url' which has “http” as its scheme and an
+-- empty path. This also sets the port to @80@.
 http :: Text -> Url 'Http
 http = Url Http . pure
 
--- | Given host name, produce a 'Url' which has “https” as its scheme and
--- empty path. This also sets port to @443@.
+-- | Given a host name, produce a 'Url' which has “https” as its scheme and
+-- an empty path. This also sets the port to @443@.
 https :: Text -> Url 'Https
 https = Url Https . pure
 
@@ -1057,7 +1057,7 @@ infixl 5 /~
 Url secure path /~ segment = Url secure (NE.cons (toUrlPiece segment) path)
 
 -- | A type-constrained version of @('/~')@ to remove ambiguity in the cases
--- when next URL piece is a 'Data.Text.Text' literal.
+-- when the next URL piece is a 'Data.Text.Text' literal.
 infixl 5 /:
 
 (/:) :: Url scheme -> Text -> Url scheme
@@ -1226,7 +1226,7 @@ instance RequestComponent (Url scheme) where
 -- data type to use with 'HttpMethod's that cannot have a body, as it's the
 -- only type for which 'ProvidesBody' returns 'NoBody'.
 --
--- Using of this body option does not set the @Content-Type@ header.
+-- Using this body option does not set the @Content-Type@ header.
 data NoReqBody = NoReqBody
 
 instance HttpBody NoReqBody where
@@ -1234,11 +1234,11 @@ instance HttpBody NoReqBody where
 
 -- | This body option allows us to use a JSON object as the request
 -- body—probably the most popular format right now. Just wrap a data type
--- that is an instance of 'ToJSON' type class and you are done: it will be
--- converted to JSON and inserted as request body.
+-- that is an instance of the 'ToJSON' type class and you are done: it will
+-- be converted to JSON and inserted as the request body.
 --
--- This body option sets the @Content-Type@ header to @\"application/json;
--- charset=utf-8\"@ value.
+-- This body option sets the @Content-Type@ header to the
+-- @\"application/json; charset=utf-8\"@ value.
 newtype ReqBodyJson a = ReqBodyJson a
 
 instance (ToJSON a) => HttpBody (ReqBodyJson a) where
@@ -1248,7 +1248,7 @@ instance (ToJSON a) => HttpBody (ReqBodyJson a) where
 -- | This body option streams request body from a file. It is expected that
 -- the file size does not change during streaming.
 --
--- Using of this body option does not set the @Content-Type@ header.
+-- Using this body option does not set the @Content-Type@ header.
 newtype ReqBodyFile = ReqBodyFile FilePath
 
 instance HttpBody ReqBodyFile where
@@ -1257,7 +1257,7 @@ instance HttpBody ReqBodyFile where
 
 -- | HTTP request body represented by a strict 'ByteString'.
 --
--- Using of this body option does not set the @Content-Type@ header.
+-- Using this body option does not set the @Content-Type@ header.
 newtype ReqBodyBs = ReqBodyBs ByteString
 
 instance HttpBody ReqBodyBs where
@@ -1265,19 +1265,20 @@ instance HttpBody ReqBodyBs where
 
 -- | HTTP request body represented by a lazy 'BL.ByteString'.
 --
--- Using of this body option does not set the @Content-Type@ header.
+-- Using this body option does not set the @Content-Type@ header.
 newtype ReqBodyLbs = ReqBodyLbs BL.ByteString
 
 instance HttpBody ReqBodyLbs where
   getRequestBody (ReqBodyLbs bs) = L.RequestBodyLBS bs
 
 -- | URL-encoded body. This can hold a collection of parameters which are
--- encoded similarly to query parameters at the end of query string, with
--- the only difference that they are stored in request body. The similarity
--- is reflected in the API as well, as you can use the same combinators you
--- would use to add query parameters: @('=:')@ and 'queryFlag'.
+-- encoded similarly to query parameters at the end of a query string, the
+-- only difference being that they are stored in the request body. The
+-- similarity is reflected in the API as well, as you can use the same
+-- combinators you would use to add query parameters: @('=:')@ and
+-- 'queryFlag'.
 --
--- This body option sets the @Content-Type@ header to
+-- This body option sets the @Content-Type@ header to the
 -- @\"application/x-www-form-urlencoded\"@ value.
 newtype ReqBodyUrlEnc = ReqBodyUrlEnc FormUrlEncodedParam
 
@@ -1286,8 +1287,8 @@ instance HttpBody ReqBodyUrlEnc where
     (L.RequestBodyLBS . BB.toLazyByteString) (Y.renderQueryText False params)
   getRequestContentType _ = pure "application/x-www-form-urlencoded"
 
--- | An opaque monoidal value that allows to collect URL-encoded parameters
--- to be wrapped in 'ReqBodyUrlEnc'.
+-- | An opaque monoidal value that allows one to collect URL-encoded
+-- parameters to be wrapped in 'ReqBodyUrlEnc'.
 newtype FormUrlEncodedParam = FormUrlEncodedParam [(Text, Maybe Text)]
   deriving (Semigroup, Monoid)
 
@@ -1349,23 +1350,23 @@ reqBodyMultipart parts = liftIO $ do
 -- | A type class for things that can be interpreted as an HTTP
 -- 'L.RequestBody'.
 class HttpBody body where
-  -- | How to get actual 'L.RequestBody'.
+  -- | How to get the actual 'L.RequestBody'.
   getRequestBody :: body -> L.RequestBody
 
-  -- | This method allows us to optionally specify the value of
-  -- @Content-Type@ header that should be used with particular body option.
+  -- | This method allows us to optionally specify the value of the
+  -- @Content-Type@ header that should be used with a particular body option.
   -- By default it returns 'Nothing' and so @Content-Type@ is not set.
   getRequestContentType :: body -> Maybe ByteString
   getRequestContentType = const Nothing
 
 -- | The type function recognizes 'NoReqBody' as having 'NoBody', while any
 -- other body option 'CanHaveBody'. This forces the user to use 'NoReqBody'
--- with 'GET' method and other methods that should not have body.
+-- with the 'GET' method and other methods that should not have a body.
 type family ProvidesBody body :: CanHaveBody where
   ProvidesBody NoReqBody = 'NoBody
   ProvidesBody body = 'CanHaveBody
 
--- | This type function allows any HTTP body if method says it
+-- | This type function allows any HTTP body if the method says it
 -- 'CanHaveBody'. When the method says it should have 'NoBody', the only
 -- body option to use is 'NoReqBody'.
 type family
@@ -1403,8 +1404,8 @@ instance (HttpBody body) => RequestComponent (Tagged "body" body) where
 -- the last argument of 'req' to specify no optional parameters, or combine
 -- 'Option's using 'mappend' or @('<>')@ to have several of them at once.
 
--- | The opaque 'Option' type is a 'Monoid' you can use to pack collection
--- of optional parameters like query parameters and headers. See sections
+-- | The opaque 'Option' type is a 'Monoid' you can use to pack a collection
+-- of optional parameters like query parameters and headers. See the sections
 -- below to learn which 'Option' primitives are available.
 data Option (scheme :: Scheme)
   = Option (Endo (Y.QueryText, L.Request)) (Maybe (L.Request -> IO L.Request))
@@ -1432,13 +1433,13 @@ instance Monoid (Option scheme) where
 instance FromForm (Option scheme) where
   fromForm = Right . formToQuery
 
--- | A helper to create an 'Option' that modifies only collection of query
--- parameters. This helper is not a part of the public API.
+-- | A helper to create an 'Option' that modifies only the collection of
+-- query parameters. This helper is not a part of the public API.
 withQueryParams :: (Y.QueryText -> Y.QueryText) -> Option scheme
 withQueryParams f = Option (Endo (first f)) Nothing
 
 -- | A helper to create an 'Option' that modifies only 'L.Request'. This
--- helper is not a part of public API.
+-- helper is not a part of the public API.
 withRequest :: (L.Request -> L.Request) -> Option scheme
 withRequest f = Option (Endo (second f)) Nothing
 
@@ -1462,9 +1463,9 @@ finalizeRequest (Option _ mfinalizer) = liftIO . fromMaybe pure mfinalizer
 -- construct query parameters (of the type 'Option') and form URL-encoded
 -- bodies (of the type 'FormUrlEncodedParam').
 
--- | This operator builds a query parameter that will be included in URL of
--- your request after the question sign @?@. This is the same syntax you use
--- with form URL encoded request bodies.
+-- | This operator builds a query parameter that will be included in the URL
+-- of your request after the question mark @?@. This is the same syntax you
+-- use with form URL encoded request bodies.
 --
 -- This operator is defined in terms of 'queryParam':
 --
@@ -1509,8 +1510,8 @@ formToQuery f = mconcat . fmap toParam . Form.toListStable $ toForm f
 -- 'FormUrlEncodedParam' when constructing form URL encoded request bodies.
 -- Having the same syntax for these cases seems natural and user-friendly.
 class QueryParam param where
-  -- | Create a query parameter with given name and value. If value is
-  -- 'Nothing', it won't be included at all (i.e. you create a flag this
+  -- | Create a query parameter with the given name and value. If the value
+  -- is 'Nothing', it won't be included at all (i.e. you create a flag this
   -- way). It's recommended to use @('=:')@ and 'queryFlag' instead of this
   -- method, because they are easier to read.
   queryParam :: (ToHttpApiData a) => Text -> Maybe a -> param
@@ -1540,7 +1541,7 @@ header ::
   Option scheme
 header name value = withRequest (attachHeader name value)
 
--- | Attach a header with given name and content to a 'L.Request'.
+-- | Attach a header with the given name and content to a 'L.Request'.
 --
 -- @since 1.1.0
 attachHeader :: ByteString -> ByteString -> L.Request -> L.Request
@@ -1611,7 +1612,7 @@ basicAuthUnsafe username password =
   customAuth
     (pure . L.applyBasicAuth username password)
 
--- | The 'Option' set basic proxy authentication header.
+-- | The 'Option' sets the basic proxy authentication header.
 --
 -- @since 1.1.0
 basicProxyAuth ::
@@ -1694,7 +1695,7 @@ customAuth = Option mempty . pure
 ----------------------------------------------------------------------------
 -- Request—Optional parameters—Other
 
--- | Specify the port to connect to explicitly. Normally, 'Url' you use
+-- | Specify the port to connect to explicitly. Normally, the 'Url' you use
 -- determines the default port: @80@ for HTTP and @443@ for HTTPS. This
 -- 'Option' allows us to choose an arbitrary port overwriting the defaults.
 port :: Int -> Option scheme
@@ -1711,14 +1712,14 @@ port n = withRequest $ \x ->
 --
 -- > decompress (const True)
 decompress ::
-  -- | Predicate that is given MIME type, it returns 'True' when content
-  -- should be decompressed on the fly.
+  -- | Predicate that is given a MIME type; it returns 'True' when the
+  -- content should be decompressed on the fly.
   (ByteString -> Bool) ->
   Option scheme
 decompress f = withRequest $ \x ->
   x {L.decompress = f}
 
--- | Specify the number of microseconds to wait for response. The default
+-- | Specify the number of microseconds to wait for a response. The default
 -- value is 30 seconds (defined in 'L.ManagerSettings' of connection
 -- 'L.Manager').
 responseTimeout ::
@@ -1756,8 +1757,8 @@ ignoreResponse :: Proxy IgnoreResponse
 ignoreResponse = Proxy
 
 -- | Make a request and interpret the body of the response as JSON. The
--- 'handleHttpException' method of 'MonadHttp' instance corresponding to
--- monad in which you use 'req' will determine what to do in the case when
+-- 'handleHttpException' method of the 'MonadHttp' instance corresponding to
+-- the monad in which you use 'req' will determine what to do in the case when
 -- parsing fails (the 'JsonHttpException' constructor will be used).
 newtype JsonResponse a = JsonResponse (L.Response a)
   deriving (Show)
@@ -1814,7 +1815,7 @@ lbsResponse = Proxy
 ----------------------------------------------------------------------------
 -- Helpers for response interpretations
 
--- | Fetch beginning of the response and return it together with a new
+-- | Fetch the beginning of the response and return it together with a new
 -- @'L.Response' 'L.BodyReader'@ that can be passed to 'getHttpResponse' and
 -- such.
 grabPreview ::
@@ -1899,12 +1900,12 @@ responseStatusMessage ::
 responseStatusMessage =
   Y.statusMessage . L.responseStatus . toVanillaResponse
 
--- | Lookup a particular header from a response.
+-- | Look up a particular header from a response.
 responseHeader ::
   (HttpResponse response) =>
   -- | Response interpretation
   response ->
-  -- | Header to lookup
+  -- | Header to look up
   ByteString ->
   -- | Header value if found
   Maybe ByteString
@@ -1937,12 +1938,12 @@ class HttpResponse response where
   -- | The method describes how to get the underlying 'L.Response' record.
   toVanillaResponse :: response -> L.Response (HttpResponseBody response)
 
-  -- | This method describes how to consume response body and, more
-  -- generally, obtain @response@ value from @'L.Response' 'L.BodyReader'@.
+  -- | This method describes how to consume the response body and, more
+  -- generally, obtain a @response@ value from @'L.Response' 'L.BodyReader'@.
   --
   -- __Note__: 'L.BodyReader' is nothing but @'IO' 'ByteString'@. You should
   -- call this action repeatedly until it yields the empty 'ByteString'. In
-  -- that case streaming of response is finished (which apparently leads to
+  -- that case streaming of the response is finished (which apparently leads to
   -- closing of the connection, so don't call the reader after it has
   -- returned the empty 'ByteString' once) and you can concatenate the
   -- chunks to obtain the final result. (Of course you could as well stream
@@ -1990,18 +1991,18 @@ instance HttpResponse (L.Response ()) where
 class RequestComponent a where
   -- | Get a function that takes a 'L.Request' and changes it somehow
   -- returning another 'L.Request'. For example, the 'HttpMethod' instance
-  -- of 'RequestComponent' just overwrites method. The function is wrapped
+  -- of 'RequestComponent' just overwrites the method. The function is wrapped
   -- in 'Endo' so it's easier to chain such “modifying applications”
   -- together building bigger and bigger 'RequestComponent's.
   getRequestMod :: a -> Endo L.Request
 
 -- | This wrapper is only used to attach a type-level tag to a given type.
--- This is necessary to define instances of 'RequestComponent' for any thing
+-- This is necessary to define instances of 'RequestComponent' for anything
 -- that implements 'HttpMethod' or 'HttpBody'. Without the tag, GHC can't
 -- see the difference between @'HttpMethod' method => 'RequestComponent'
 -- method@ and @'HttpBody' body => 'RequestComponent' body@ when it decides
 -- which instance to use (i.e. the constraints are taken into account later,
--- when instance is already chosen).
+-- when the instance is already chosen).
 newtype Tagged (tag :: Symbol) a = Tagged a
 
 -- | Exceptions that this library throws.

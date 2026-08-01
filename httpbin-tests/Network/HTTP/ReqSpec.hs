@@ -32,10 +32,10 @@ import Test.QuickCheck
 
 spec :: Spec
 spec = do
-  describe "exception throwing on non-2xx status codes" $
-    it "throws indeed for non-2xx" $
-      req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
-        `shouldThrow` selector404
+  describe "exception throwing on non-2xx status codes"
+    $ it "throws indeed for non-2xx"
+    $ req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
+      `shouldThrow` selector404
 
   describe "exception throwing on non-2xx status codes (Req monad)" $
     it "throws indeed for non-2xx" $
@@ -44,16 +44,16 @@ spec = do
           run (req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty)
             `shouldThrow` selector404
 
-  describe "response check via httpConfigCheckResponse" $
-    context "if it's set to always throw" $
-      it "throws indeed" $
-        blindlyThrowing (req GET httpbin NoReqBody ignoreResponse mempty)
-          `shouldThrow` anyException
+  describe "response check via httpConfigCheckResponse"
+    $ context "if it's set to always throw"
+    $ it "throws indeed"
+    $ blindlyThrowing (req GET httpbin NoReqBody ignoreResponse mempty)
+      `shouldThrow` anyException
 
-  describe "isStatusCodeException" $
-    it "extracts non-2xx response" $
-      req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
-        `shouldThrow` selector404ByStatusCodeException
+  describe "isStatusCodeException"
+    $ it "extracts non-2xx response"
+    $ req GET (httpbin /: "foo") NoReqBody ignoreResponse mempty
+      `shouldThrow` selector404ByStatusCodeException
 
   describe "receiving user-agent header back" $
     it "works" $ do

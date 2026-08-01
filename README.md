@@ -77,10 +77,10 @@ you the best experience:
 * [`http-client-tls`](https://hackage.haskell.org/package/http-client-tls)—TLS
   (HTTPS) support for `http-client`.
 
-It is important to note that since we leverage well-known libraries that the
-whole Haskell ecosystem uses, there is no risk in using Req. The machinery
-for performing requests is the same as with `http-conduit` and Wreq. The
-only difference is the API.
+It is worth noting that since we leverage well-known libraries used
+throughout the Haskell ecosystem, there is no risk in using Req. The
+machinery for performing requests is the same as in `http-conduit` and Wreq;
+the only difference is the API.
 
 ## Related packages
 
@@ -107,4 +107,4 @@ Pull requests are also welcome.
 
 Copyright © 2016–present Mark Karpov
 
-Distributed under BSD 3 clause license.
+Distributed under the BSD 3-clause license.
