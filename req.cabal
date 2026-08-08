@@ -30,10 +30,13 @@ flag dev
     manual:      True
 
 library
-    exposed-modules:  Network.HTTP.Req
+    exposed-modules:
+        Network.HTTP.Req,
+        Network.HTTP.Req.Links
     default-language: GHC2021
     build-depends:
         aeson >=0.9 && <3,
+        attoparsec ^>= 0.14.4,
         authenticate-oauth >=1.5 && <1.8,
         base >=4.15 && <5,
         blaze-builder >=0.3 && <0.5,
