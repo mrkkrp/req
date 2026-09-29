@@ -399,13 +399,13 @@ targetUrl = "http://" <> targetHost <> ":" <> T.pack (show targetPort)
 
 -- | Run a request with such settings that it does not signal errors.
 prepareForShit :: Req a -> IO a
-prepareForShit = runReq defaultHttpConfig {httpConfigCheckResponse = noNoise}
+prepareForShit = runReq defaultHttpConfig{httpConfigCheckResponse = noNoise}
   where
     noNoise _ _ _ = Nothing
 
 -- | Run a request with such settings that it throws on any response.
 blindlyThrowing :: Req a -> IO a
-blindlyThrowing = runReq defaultHttpConfig {httpConfigCheckResponse = doit}
+blindlyThrowing = runReq defaultHttpConfig{httpConfigCheckResponse = doit}
   where
     doit _ _ = error "Oops!"
 

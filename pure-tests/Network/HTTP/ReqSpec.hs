@@ -119,7 +119,7 @@ spec = do
       it "accepts correct URLs" $
         property $ \uri' -> do
           unless (isRight (URI.uriAuthority uri')) discard
-          let uri = uri' {URI.uriScheme = Just [QQ.scheme|http|]}
+          let uri = uri'{URI.uriScheme = Just [QQ.scheme|http|]}
               (url', options) = fromJust (useHttpURI uri)
           request <- req_ GET url' NoReqBody options
           L.host request `shouldBe` uriHost uri
@@ -136,7 +136,7 @@ spec = do
       it "parses correct URLs" $
         property $ \uri' -> do
           unless (isRight (URI.uriAuthority uri')) discard
-          let uri = uri' {URI.uriScheme = Just [QQ.scheme|https|]}
+          let uri = uri'{URI.uriScheme = Just [QQ.scheme|https|]}
               (url', options) = fromJust (useHttpsURI uri)
           request <- req_ GET url' NoReqBody options
           L.host request `shouldBe` uriHost uri
@@ -157,8 +157,8 @@ spec = do
       it "parses correct URLs" $
         property $ \uri' -> do
           unless (isRight (URI.uriAuthority uri')) discard
-          let uriHttp = uri' {URI.uriScheme = Just [QQ.scheme|http|]}
-              uriHttps = uri' {URI.uriScheme = Just [QQ.scheme|https|]}
+          let uriHttp = uri'{URI.uriScheme = Just [QQ.scheme|http|]}
+              uriHttps = uri'{URI.uriScheme = Just [QQ.scheme|https|]}
           requestHttp <-
             case fromJust (useURI uriHttp) of
               Left (url', options) -> req_ GET url' NoReqBody options
@@ -435,10 +435,10 @@ instance Arbitrary HttpConfig where
         httpConfigRetryJudge _ _ = False
         httpConfigRetryJudgeException _ _ = False
         httpConfigBodyPreviewLength = 1024
-    return HttpConfig {..}
+    return HttpConfig{..}
 
 instance Show HttpConfig where
-  show HttpConfig {..} =
+  show HttpConfig{..} =
     "HttpConfig\n"
       ++ "{ httpConfigProxy="
       ++ show httpConfigProxy
@@ -491,7 +491,7 @@ instance Arbitrary L.Cookie where
     cookie_host_only <- arbitrary
     cookie_secure_only <- arbitrary
     cookie_http_only <- arbitrary
-    return L.Cookie {..}
+    return L.Cookie{..}
 
 instance Arbitrary UTCTime where
   arbitrary = UTCTime <$> arbitrary <*> arbitrary
@@ -509,7 +509,7 @@ instance Arbitrary F.Form where
 -- Helper types
 
 -- | A wrapper to generate correct hosts.
-newtype Host = Host {unHost :: Text}
+newtype Host = Host{unHost :: Text}
   deriving (Eq, Show)
 
 instance Arbitrary Host where
@@ -592,7 +592,7 @@ uriQuery uri = do
 uriBasicAuth :: URI -> Maybe ByteString
 uriBasicAuth uri = do
   auth <- either (const Nothing) Just (URI.uriAuthority uri)
-  URI.UserInfo {..} <- URI.authUserInfo auth
+  URI.UserInfo{..} <- URI.authUserInfo auth
   let username = T.encodeUtf8 (URI.unRText uiUsername)
       password = maybe "" (T.encodeUtf8 . URI.unRText) uiPassword
   return (basicAuthHeader username password)

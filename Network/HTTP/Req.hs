@@ -498,7 +498,7 @@ reqHandler ::
   L.Manager ->
   m b
 reqHandler consume request manager = do
-  HttpConfig {..} <- getHttpConfig
+  HttpConfig{..} <- getHttpConfig
   let wrapVanilla = handle (throwIO . VanillaHttpException)
       wrapExc = handle (throwIO . LI.toHttpException request)
       withRRef =
@@ -567,7 +567,7 @@ req' method url body options m = do
   let -- NOTE First appearance of any given header wins. This allows to
       -- “overwrite” headers when we construct a request by cons-ing.
       nubHeaders = Endo $ \x ->
-        x {L.requestHeaders = nubBy ((==) `on` fst) (L.requestHeaders x)}
+        x{L.requestHeaders = nubBy ((==) `on` fst) (L.requestHeaders x)}
       request' =
         flip appEndo L.defaultRequest $
           -- NOTE The order of 'mappend's matters, here method is overwritten
@@ -754,7 +754,7 @@ defaultHttpConfig =
     statusCode = Y.statusCode . L.responseStatus
 
 instance RequestComponent HttpConfig where
-  getRequestMod HttpConfig {..} = Endo $ \x ->
+  getRequestMod HttpConfig{..} = Endo $ \x ->
     x
       { L.proxy = httpConfigProxy,
         L.redirectCount = httpConfigRedirectCount,
@@ -984,7 +984,7 @@ class HttpMethod a where
 
 instance (HttpMethod method) => RequestComponent (Tagged "method" method) where
   getRequestMod _ = Endo $ \x ->
-    x {L.method = httpMethodName (Proxy :: Proxy method)}
+    x{L.method = httpMethodName (Proxy :: Proxy method)}
 
 ----------------------------------------------------------------------------
 -- Request—URL
@@ -1134,7 +1134,7 @@ useURI uri =
 uriHost :: URI -> Maybe Text
 uriHost uri = case URI.uriAuthority uri of
   Left _ -> Nothing
-  Right URI.Authority {..} ->
+  Right URI.Authority{..} ->
     Just (URI.unRText authHost)
 
 -- | A quasiquoter to build an 'Url' and 'Option' tuple. The type of the
@@ -1173,10 +1173,10 @@ uriOptions uri =
     (auth, port') =
       case URI.uriAuthority uri of
         Left _ -> (mempty, mempty)
-        Right URI.Authority {..} ->
+        Right URI.Authority{..} ->
           let auth0 = case authUserInfo of
                 Nothing -> mempty
-                Just URI.UserInfo {..} ->
+                Just URI.UserInfo{..} ->
                   let username = T.encodeUtf8 (URI.unRText uiUsername)
                       password = maybe "" (T.encodeUtf8 . URI.unRText) uiPassword
                    in basicAuthUnsafe username password
@@ -1447,7 +1447,7 @@ instance RequestComponent (Option scheme) where
   getRequestMod (Option f _) = Endo $ \x ->
     let (qparams, x') = appEndo f ([], x)
         query = Y.renderQuery True (Y.queryTextToQuery qparams)
-     in x' {L.queryString = query}
+     in x'{L.queryString = query}
 
 -- | Finalize given 'L.Request' by applying a finalizer from the given
 -- 'Option' (if it has any).
@@ -1546,7 +1546,7 @@ header name value = withRequest (attachHeader name value)
 -- @since 1.1.0
 attachHeader :: ByteString -> ByteString -> L.Request -> L.Request
 attachHeader name value x =
-  x {L.requestHeaders = (CI.mk name, value) : L.requestHeaders x}
+  x{L.requestHeaders = (CI.mk name, value) : L.requestHeaders x}
 
 -- | Same as 'header', but with redacted values on print.
 --
@@ -1554,7 +1554,7 @@ attachHeader name value x =
 headerRedacted :: ByteString -> ByteString -> Option scheme
 headerRedacted name value = withRequest $ \x ->
   let y = attachHeader name value x
-   in y {L.redactHeaders = CI.mk name `S.insert` L.redactHeaders y}
+   in y{L.redactHeaders = CI.mk name `S.insert` L.redactHeaders y}
 
 ----------------------------------------------------------------------------
 -- Request—Optional parameters—Cookies
@@ -1569,7 +1569,7 @@ headerRedacted name value = withRequest $ \x ->
 -- 'L.Response' record.
 cookieJar :: L.CookieJar -> Option scheme
 cookieJar jar = withRequest $ \x ->
-  x {L.cookieJar = Just jar}
+  x{L.cookieJar = Just jar}
 
 ----------------------------------------------------------------------------
 -- Request—Optional parameters—Authentication
@@ -1700,7 +1700,7 @@ customAuth = Option mempty . pure
 -- 'Option' allows us to choose an arbitrary port overwriting the defaults.
 port :: Int -> Option scheme
 port n = withRequest $ \x ->
-  x {L.port = n}
+  x{L.port = n}
 
 -- | This 'Option' controls whether gzipped data should be decompressed on
 -- the fly. By default everything except for @\"application\/x-tar\"@ is
@@ -1717,7 +1717,7 @@ decompress ::
   (ByteString -> Bool) ->
   Option scheme
 decompress f = withRequest $ \x ->
-  x {L.decompress = f}
+  x{L.decompress = f}
 
 -- | Specify the number of microseconds to wait for a response. The default
 -- value is 30 seconds (defined in 'L.ManagerSettings' of connection
@@ -1727,7 +1727,7 @@ responseTimeout ::
   Int ->
   Option scheme
 responseTimeout n = withRequest $ \x ->
-  x {L.responseTimeout = LI.ResponseTimeoutMicro n}
+  x{L.responseTimeout = LI.ResponseTimeoutMicro n}
 
 -- | HTTP version to send to the server, the default is HTTP 1.1.
 httpVersion ::
@@ -1737,7 +1737,7 @@ httpVersion ::
   Int ->
   Option scheme
 httpVersion major minor = withRequest $ \x ->
-  x {L.requestVersion = Y.HttpVersion major minor}
+  x{L.requestVersion = Y.HttpVersion major minor}
 
 ----------------------------------------------------------------------------
 -- Response interpretations
@@ -1847,7 +1847,7 @@ grabPreview nbytes r = do
             if done
               then return B.empty
               else br
-  return (target, r {L.responseBody = br'})
+  return (target, r{L.responseBody = br'})
 
 -- | Consume N bytes from 'L.BodyReader', return the target chunk, the
 -- leftover (may be empty), and whether we're done consuming the body.
